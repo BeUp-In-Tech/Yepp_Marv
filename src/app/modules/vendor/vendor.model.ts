@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { IAuthProvider, IUser, Role } from './user.interface';
+import { IAuthProvider, IVendor, Role } from './vendor.interface';
 import bcrypt from 'bcrypt';
 import env from '../../config/env';
 
@@ -14,12 +14,10 @@ const authProviderSchema = new mongoose.Schema<IAuthProvider>({
 
 
 
-const userSchema = new mongoose.Schema<IUser>({
-    name: { type: String, required: true },
+const userSchema = new mongoose.Schema<IVendor>({
+    user_name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase:true },
     password: { type: String },
-    picture: { type: String},
-    otp: { type: String, default: 0 },
     isVerified: { type: Boolean, default: false },
     role: { type: String, enum: [...Object.values(Role)], default: Role.USER },
     auths: [authProviderSchema]
@@ -30,16 +28,18 @@ const userSchema = new mongoose.Schema<IUser>({
 
 
 // Hashed password
-userSchema.pre("save", async function(next) {
-     if (!this?.password) next();
-     const hashedPassword = await bcrypt.hash(this?.password as string, parseInt(env?.BCRYPT_SALT_ROUND));
-     this.password = hashedPassword;
-     next();
+ userSchema.pre('save', async function () {
+  if (!this.password) return;  
+    const hashedPassword = await bcrypt.hash(
+      this.password,
+      parseInt(env.BCRYPT_SALT_ROUND)
+    );
+    this.password = hashedPassword;
 });
 
 
 
 
-const User = mongoose.model<IUser>("user", userSchema);
+const Vendor = mongoose.model<IVendor>("vendor", userSchema);
 
-export default User;
+export default Vendor;

@@ -1,23 +1,20 @@
-
-
 export enum Role {
     USER = "USER",
+    VENDOR = "VENDOR",
     ADMIN = "ADMIN"
 }
 
 export interface IAuthProvider {
-    provider: "credentials" | "google" | "facebook",
+    provider: "credentials" | "google" | "apple",
     providerId: string;
 }
 
-export interface IUser {
+export interface IVendor {
     _id: string;
-    name: string;
+    user_name: string;
     email: string;
     password?: string;
-    picture?: string;
     isVerified?: boolean;
-    otp?: string;
     role?: Role;
     auths?: IAuthProvider[]
 }

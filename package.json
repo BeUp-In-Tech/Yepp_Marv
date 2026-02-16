@@ -1,17 +1,16 @@
 {
-  "name": "backend-boilerplate",
+  "name": "coupon",
   "version": "1.0.0",
-  "description": "",
+  "description": "This is a coupon reedem application",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon --watch src --exec ts-node ./src/server.ts",
     "lint": "npx eslint ./src",
     "build": "tsc",
     "format": "npx prettier --write ."
   },
-  "keywords": [],
+  "keywords": ["coupon", "products","ecommerce", "lifestyle"],
   "author": "",
   "license": "ISC",
   "devDependencies": {

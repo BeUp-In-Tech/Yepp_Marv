@@ -1,10 +1,10 @@
 import z from "zod";
-import { Role } from "./user.interface";
+import { Role } from "./vendor.interface";
 
  
 
  export const userZodSchema = z.object({
-    name: z
+    user_name: z
             .string({error: "Name must be string type!"})
             .min(3, "Name must be at least minimum 3 characters!")
             .max(100, "Name must be maximum 100 characters! "),
@@ -21,17 +21,14 @@ import { Role } from "./user.interface";
 
 
  export const userUpdateZodSchema = z.object({
-    name: z
+    user_name: z
             .string({error: "Name must be string type!"})
             .min(3, "Name must be at least minimum 3 characters!")
             .max(100, "Name must be maximum 100 characters! ")
             .optional(),
-    picture: z
-                .string({error: "Image should be string"})
+    isVerified: z
+                .boolean({error: "Only boolean acceptable"})
                 .optional(),
-    otp: z
-            .string("OTP type should be string!")
-            .optional(),
     role: z
             .enum(Object.values(Role))
             .optional()
