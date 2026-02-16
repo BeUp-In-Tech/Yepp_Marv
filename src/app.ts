@@ -20,6 +20,7 @@ app.use(expressSession({
   saveUninitialized: false
 }));
 
+app.set('trust proxy', 1);
 app.use(passport.initialize()); // Initilazed Passport
 app.use(passport.session()); // Create a session
 app.use(express.json());

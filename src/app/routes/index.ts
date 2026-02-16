@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authRouter } from '../modules/auth/auth.routes';
-import { vendorRoutes } from '../modules/vendor/vendor.routes';
+import { vendorRoutes } from '../modules/user/user.routes';
 
 
 

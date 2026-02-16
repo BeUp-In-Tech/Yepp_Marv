@@ -30,9 +30,9 @@ interface EnvInterfaces {
   // EMAIL_USER: string;
   // EMAIL_PASSWORD: string;
 
-  // GOOGLE_OAUTH_ID: string;
-  // GOOGLE_OAUTH_SECRET: string;
-  // GOOGLE_CALLBACK_URL: string;
+  GOOGLE_OAUTH_ID: string;
+  GOOGLE_OAUTH_SECRET: string;
+  GOOGLE_CALLBACK_URL: string;
 
   EXPRESS_SESSION_SECRET: string;
 }
@@ -66,9 +66,9 @@ const loadEnvVarbles = (): EnvInterfaces => {
     // 'EMAIL_USER',
     // 'EMAIL_PASSWORD',
 
-    // "GOOGLE_OAUTH_SECRET",
-    // "GOOGLE_OAUTH_ID",
-    // "GOOGLE_CALLBACK_URL",
+    "GOOGLE_OAUTH_SECRET",
+    "GOOGLE_OAUTH_ID",
+    "GOOGLE_CALLBACK_URL",
 
     "EXPRESS_SESSION_SECRET"
   ];
@@ -110,9 +110,9 @@ const loadEnvVarbles = (): EnvInterfaces => {
     // EMAIL_PORT: process.env.EMAIL_PORT as string,
     // EMAIL_HOST: process.env.EMAIL_HOST as string,
 
-    // GOOGLE_OAUTH_ID: process.env.GOOGLE_OAUTH_ID as string,
-    // GOOGLE_OAUTH_SECRET: process.env.GOOGLE_OAUTH_SECRET as string,
-    // GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL as string,
+    GOOGLE_OAUTH_ID: process.env.GOOGLE_OAUTH_ID as string,
+    GOOGLE_OAUTH_SECRET: process.env.GOOGLE_OAUTH_SECRET as string,
+    GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL as string,
 
     EXPRESS_SESSION_SECRET: process.env.EXPRESS_SESSION_SECRET as string,
   };

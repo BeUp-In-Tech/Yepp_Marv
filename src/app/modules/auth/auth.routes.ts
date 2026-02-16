@@ -11,8 +11,6 @@ router.get(
   authController.googleCallback
 );
 
-router.get('/facebook', authController.facebookRegister);
-router.get('/facebook/callback', authController.facebookCallback);
 
 router.post('/login', authController.credentialsLogin);
 
