@@ -2,29 +2,40 @@ import { NextFunction, Request, Response } from 'express';
 import { verifyToken } from '../utils/jwt';
 import { JwtPayload } from 'jsonwebtoken';
 import AppError from '../errorHelpers/AppError';
-import httpStatus from 'http-status-codes';
+import httpStatus, { StatusCodes } from 'http-status-codes';
 import env from '../config/env';
+import User from '../modules/user/user.model';
+
+
 
 export const checkAuth =
   (...restRole: string[]) =>
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const accessToken = req.headers.authorization;
-      const verifyUser = verifyToken( accessToken as string, env.JWT_SECRET ) as JwtPayload;
 
-      /*
-      ----------------------------------------------------------------
-      // More checking will be execute here based on application need
-      ----------------------------------------------------------------
-      */
+      if (!accessToken) {
+      throw new AppError(StatusCodes.BAD_REQUEST, "Token required");
+      }
 
-       
-      // CHECK Verified
+      // VERIFY USER
+      const verifyUser = verifyToken( accessToken as string, env.JWT_ACCESS_SECRET ) as JwtPayload;
+
+      // CHECK VERIFIED
       if (!verifyUser) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Not Authorized')
+        throw new AppError(httpStatus.BAD_REQUEST, 'You are unauthorized');
       };
 
-      if (!restRole.includes(verifyUser.role)) {
+      const isUser = await User.findById(verifyUser.userId);
+      if (!isUser) {
+        throw new AppError(StatusCodes.NOT_FOUND, "User not found");
+      }
+
+      if (!isUser.isVerified) {
+        throw new AppError(StatusCodes.BAD_REQUEST, "Your are not verified");
+      }
+
+      if (restRole.length && !restRole.includes(verifyUser.role)) {
         throw new AppError( httpStatus.FORBIDDEN, 'You are not permitted to access this route')
       };
 
