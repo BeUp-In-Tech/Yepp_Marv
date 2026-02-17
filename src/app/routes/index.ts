@@ -12,7 +12,7 @@ const moduleRoutes = [
     route: authRouter
    },
    {
-    path: '/vendor',
+    path: '/user',
     route: vendorRoutes
    }
 ];

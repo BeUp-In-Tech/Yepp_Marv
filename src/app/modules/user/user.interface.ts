@@ -9,7 +9,7 @@ export interface IAuthProvider {
     providerId: string;
 }
 
-export interface IVendor {
+export interface IUser {
     _id: string;
     user_name: string;
     email: string;

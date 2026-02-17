@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { IAuthProvider, IVendor, Role } from './user.interface';
+import { IAuthProvider, IUser, Role } from './user.interface';
 import bcrypt from 'bcrypt';
 import env from '../../config/env';
 
@@ -14,7 +14,7 @@ const authProviderSchema = new mongoose.Schema<IAuthProvider>({
 
 
 
-const userSchema = new mongoose.Schema<IVendor>({
+const userSchema = new mongoose.Schema<IUser>({
     user_name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase:true },
     password: { type: String },
@@ -40,5 +40,5 @@ const userSchema = new mongoose.Schema<IVendor>({
 
 
 
-const User = mongoose.model<IVendor>("user", userSchema);
+const User = mongoose.model<IUser>("user", userSchema);
 export default User;

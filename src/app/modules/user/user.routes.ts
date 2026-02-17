@@ -1,10 +1,13 @@
 import express from 'express';
 import { validateRequest } from '../../middlewares/validateRequest';
-import { vendorZodSchema } from './user.validate';
+import { userUpdateZodSchema, userZodSchema,   } from './user.validate';
 import { userControllers } from './user.controller';
+import { checkAuth } from '../../middlewares/auth.middleware';
+import { Role } from './user.interface';
 
 const router = express.Router();
 
-router.post('/register', validateRequest(vendorZodSchema), userControllers.registerVendor);
+router.post('/register', validateRequest(userZodSchema), userControllers.registerUser);
+router.patch('/', validateRequest(userUpdateZodSchema), checkAuth(...Object.keys(Role)), userControllers.updateUser);
 
 export const vendorRoutes = router;

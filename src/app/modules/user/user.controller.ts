@@ -4,15 +4,27 @@ import { CatchAsync } from "../../utils/CatchAsync";
 import { SendResponse } from "../../utils/SendResponse";
 import { StatusCodes } from "http-status-codes";
 import { userServices } from "./user.service";
+import { JwtPayload } from "jsonwebtoken";
 
 
 
-const registerVendor = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+const registerUser = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const result = await userServices.registerUser(req.body);
     SendResponse(res, {
         success: true,
         statusCode: StatusCodes.CREATED,
-        message: "Vendor created!",
+        message: "User created!",
+        data: result
+    })
+});
+
+const updateUser = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as JwtPayload;
+    const result = await userServices.updateUser(user, req.body);
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.CREATED,
+        message: "User updated!",
         data: result
     })
 });
@@ -20,5 +32,6 @@ const registerVendor = CatchAsync(async (req: Request, res: Response, next: Next
 
 
 export const userControllers = {
-    registerVendor
+    registerUser,
+    updateUser
 }

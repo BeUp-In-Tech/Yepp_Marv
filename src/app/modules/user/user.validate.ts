@@ -3,7 +3,7 @@ import { Role } from "./user.interface";
 
  
 
- export const vendorZodSchema = z.object({
+ export const userZodSchema = z.object({
     user_name: z
             .string({error: "Name must be string type!"})
             .min(3, "Name must be at least minimum 3 characters!")
@@ -20,15 +20,12 @@ import { Role } from "./user.interface";
  });
 
 
- export const vendorUpdateZodSchema = z.object({
+ export const userUpdateZodSchema = z.object({
     user_name: z
             .string({error: "Name must be string type!"})
             .min(3, "Name must be at least minimum 3 characters!")
             .max(100, "Name must be maximum 100 characters! ")
             .optional(),
-    isVerified: z
-                .boolean({error: "Only boolean acceptable"})
-                .optional(),
     role: z
             .enum(Object.values(Role))
             .optional()
