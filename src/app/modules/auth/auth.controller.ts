@@ -126,6 +126,20 @@ const resetPassword = CatchAsync(async (req: Request, res: Response, next: NextF
   })
 })
 
+
+// VERIFY FORGET PASSWORD OTP
+const getNewAccessToken = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+  const { refreshToken } = req.body;
+  const result = await authService.getNewAccessTokenService(refreshToken);
+
+  SendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: "New access token generated",
+    data: result
+  })
+})
+
 export const authController = {
   googleRegister,
   googleCallback,
@@ -133,5 +147,6 @@ export const authController = {
   changePassword,
   forgetPassword,
   verifyForgetPasswordOTP,
-  resetPassword
+  resetPassword,
+  getNewAccessToken
 };

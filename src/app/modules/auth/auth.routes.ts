@@ -16,6 +16,8 @@ router.get('/forget_password/:email', authController.forgetPassword);
 router.post('/verify_otp', authController.verifyForgetPasswordOTP);
 // RESET PASSWORD
 router.post('/reset_password', authController.resetPassword);
+// GET NEW TOKEN
+router.post('/generate_token', authController.getNewAccessToken);
 
 // GOOGLE LOGIN
 router.get('/google', authController.googleRegister);

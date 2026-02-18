@@ -8,6 +8,8 @@ import { sendEmail } from '../../utils/sendMail';
 import { IsActiveUser } from '../user/user.interface';
 import env from '../../config/env';
 import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
+import { verifyToken } from '../../utils/jwt';
+import { createUserTokens } from '../../utils/user.tokens';
 
 // CHANGE PASSWORD
 const changePasswordService = async (
@@ -162,9 +164,55 @@ const resetPasswordService = async (token: string, newPassword: string) => {
   return null;
 };
 
+// GET NEW ACCESS TOKEN
+// GET NEW ACCESS TOKEN
+const getNewAccessTokenService = async (refreshToken: string) => {
+  if (!refreshToken) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Refresh token needed!');
+  }
+
+  const tokenVerify = verifyToken(
+    refreshToken,
+    env.JWT_REFRESH_SECRET
+  ) as JwtPayload; // VERIFY TOKEN
+  const isUserExists = await User.findById(tokenVerify.userId as string); // FIND USER BY ID
+
+  if (!isUserExists) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "User Doesn't Exist");
+  }
+
+  if (
+    isUserExists.isActive === IsActiveUser.BLOCKED ||
+    isUserExists.isActive === IsActiveUser.INACTIVE
+  ) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      'The User "blocked" or "inactive"'
+    );
+  }
+
+  if (isUserExists.isDeleted) {
+    throw new AppError(StatusCodes.BAD_REQUEST, 'The user was "deleted"');
+  }
+
+  const jwtPayload = {
+    _id: isUserExists?._id,
+    email: isUserExists?.email,
+    role: isUserExists?.role,
+  };
+
+  const userToken = await createUserTokens(jwtPayload); // Jsonwebtoken
+
+  return {
+    newAccessToken: userToken.accessToken,
+    newRefreshToken: userToken.refreshToken,
+  };
+};
+
 export const authService = {
   changePasswordService,
   forgetPasswordService,
   verifyForgetPasswordOTPService,
-  resetPasswordService
+  resetPasswordService,
+  getNewAccessTokenService
 };
