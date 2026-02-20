@@ -8,9 +8,13 @@ import { JwtPayload } from "jsonwebtoken";
 
 
 const createShop = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const payload = req.body;
-    
     const user = req.user as JwtPayload;
+     const payload = {
+      ...req.body,
+      business_logo: req.file?.path as string
+    };
+
+    
     const result = await shopServices.createShopService( user.userId, payload);
     SendResponse(res, {
         success: true,
@@ -28,7 +32,7 @@ const  getShopDetails = CatchAsync(async (req: Request, res: Response, next: Nex
     SendResponse(res, {
         success: true,
         statusCode: StatusCodes.CREATED,
-        message: "Sho details fetched!",
+        message: "Shop details fetched!",
         data: result
     })
 });
