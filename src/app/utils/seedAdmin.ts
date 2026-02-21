@@ -18,6 +18,7 @@ export const createAdmin = async () => {
             email: env.ADMIN_MAIL,
             role: Role.ADMIN,
             isVerified: true,
+            deviceTokens: [],
             password: env.ADMIN_PASSWORD
         }
 

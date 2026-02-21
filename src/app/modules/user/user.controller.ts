@@ -54,10 +54,51 @@ const verifyProfile = CatchAsync(async (req: Request, res: Response, next: NextF
 });
 
 
+const registerPushToken = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const payload = req.body;
+    const { userId }= req.user as JwtPayload;
+    const result = await userServices.registerPushTokenService(userId, payload);
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Push device saved",
+        data: result
+    })
+});
+
+
+const unregisterPushToken = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const { deviceId } = req.body;
+    const { userId }= req.user as JwtPayload;
+    const result = await userServices.unregisterPushTokenService(deviceId, userId);
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Push device removed",
+        data: result
+    })
+});
+
+
+const getMyDeviceList = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const { userId }= req.user as JwtPayload;
+    const result = await userServices.listMyDevicesService(userId);
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Push device list fetched",
+        data: result
+    })
+});
+
+
 
 export const userControllers = {
     registerUser,
     updateUser,
     sendVerificationOTP,
-    verifyProfile
+    verifyProfile,
+    registerPushToken,
+    unregisterPushToken,
+    getMyDeviceList
 }

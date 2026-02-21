@@ -1,5 +1,5 @@
 import z from "zod";
-import { Role } from "./user.interface";
+import { IPlatform, Role } from "./user.interface";
 
  
 
@@ -30,3 +30,17 @@ import { Role } from "./user.interface";
             .enum(Object.values(Role))
             .optional()
  });
+
+
+
+ // FCM TOKEN REGISTER SCHEMA
+ export const registerSchema = z.object({
+  token: z.string().min(10),
+  platform: z.enum(IPlatform),
+  deviceId: z.string().min(6),
+  deviceName: z.string().optional(),
+});
+
+export const unregisterSchema = z.object({
+  deviceId: z.string().min(6),
+});

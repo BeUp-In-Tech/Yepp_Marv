@@ -1,11 +1,13 @@
 import { StatusCodes } from "http-status-codes";
 import AppError from "../../errorHelpers/AppError";
-import { IAuthProvider, IUser, Role,   } from "./user.interface";
+import { IAuthProvider, IFcmToken, IUser, Role,   } from "./user.interface";
 import User from "./user.model";
 import { JwtPayload } from "jsonwebtoken";
 import { randomOTPGenerator } from "../../utils/randomOTPGenerator";
 import { redisClient } from "../../config/redis.config";
 import { sendEmail } from "../../utils/sendMail";
+import { Types } from "mongoose";
+import { removeTokenFromOtherUsers } from "../../utils/removeToken";
 
 
 // CREATE VENDOR SERVICE
@@ -33,6 +35,7 @@ const registerUserService = async (payload: IUser) => {
   const creatUser = await User.create(userPayload); 
   return creatUser;
 }
+
 
 // UPDATE USER
 const updateUserService = async (user: JwtPayload, payload: Partial<IUser>) => {
@@ -99,7 +102,7 @@ const sendVerificationOtpService = async (email: string) => {
   return null;
 }
 
-
+// VERIFY USER PROFILE
 const verifyUserProfileService = async (email: string, otp: number) => {
   const user = await User.findOne({ email });
   if (!user) {
@@ -127,11 +130,90 @@ const verifyUserProfileService = async (email: string, otp: number) => {
 }
 
 
+// REGISTER USER FCM TOKEN
+const registerPushTokenService = async (_userId: string, payload: IFcmToken) => {
+    const userId = new Types.ObjectId(_userId);
+    const { token, platform, deviceId, deviceName } = payload;
+
+    await removeTokenFromOtherUsers(token, _userId);
+
+    // 1) Try update existing device entry (by deviceId)
+    const updateResult = await User.updateOne(
+      { _id: userId, "deviceTokens.deviceId": deviceId },
+      {
+        $set: {
+          "deviceTokens.$.token": token,
+          "deviceTokens.$.platform": platform,
+          "deviceTokens.$.deviceName": deviceName || "",
+          "deviceTokens.$.lastSeenAt": new Date(),
+          "deviceTokens.$.isActive": true,
+        },
+      }
+    );
+
+    // 2) If no entry exists for this deviceId, push new
+    if (updateResult.matchedCount === 0) {
+      await User.updateOne(
+        { _id: userId },
+        {
+          $push: {
+            deviceTokens: {
+              token,
+              platform,
+              deviceId,
+              deviceName: deviceName || "",
+              lastSeenAt: new Date(),
+              isActive: true,
+            },
+          },
+        }
+      );
+    }
+
+    return null;
+};
+
+
+// UNREGISTER PUSH
+const unregisterPushTokenService = async (deviceId: string, _userId: string) => {
+    const userId = new Types.ObjectId(_userId);
+
+    await User.updateOne(
+      { _id: userId, "deviceTokens.deviceId": deviceId },
+      {
+        $set: {
+          "deviceTokens.$.isActive": false,
+          "deviceTokens.$.lastSeenAt": new Date(),
+        },
+      }
+    );
+
+    return null;
+};
+
+
+// LIST OF LOGGED IN DEVICES
+const listMyDevicesService = async (_userId: string) => {
+    const userId = new Types.ObjectId(_userId);
+
+    const user = await User.findById(userId).select("deviceTokens").lean();
+    const devices = user?.deviceTokens || [];
+
+    // optional: show active first
+    devices.sort((a, b) => Number(b.isActive) - Number(a.isActive));
+
+    return devices;
+};
+
+
 
 
 export const userServices = {
     registerUserService,
     updateUserService,
     sendVerificationOtpService,
-    verifyUserProfileService
+    verifyUserProfileService,
+    registerPushTokenService,
+    unregisterPushTokenService,
+    listMyDevicesService
 }

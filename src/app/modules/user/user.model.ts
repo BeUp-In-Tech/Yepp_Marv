@@ -1,9 +1,10 @@
 import mongoose from 'mongoose';
-import { IAuthProvider, IsActiveUser, IUser, Role } from './user.interface';
+import { IAuthProvider, IFcmToken, IPlatform, IsActiveUser, IUser, Role } from './user.interface';
 import bcrypt from 'bcrypt';
 import env from '../../config/env';
 
 
+// AUTH SUB-SCHEMA
 const authProviderSchema = new mongoose.Schema<IAuthProvider>({
     provider: { type: String, required: true },
     providerId: { type: String, required: true }
@@ -12,14 +13,31 @@ const authProviderSchema = new mongoose.Schema<IAuthProvider>({
     versionKey: false
 });
 
+// TOKEN SUB-SCHEMA
+const DeviceTokenSchema = new mongoose.Schema<IFcmToken>(
+  {
+    deviceId: { type: String, required: true }, // stable per install/browser
+    platform: { type: String, enum: IPlatform, required: true },
+    token: { type: String, required: true }, // FCM token
+
+    deviceName: { type: String, default: "" },
+    lastSeenAt: { type: Date, default: Date.now },
+
+    isActive: { type: Boolean, default: true },
+  },
+  { _id: false }
+);
 
 
+
+// MAIN USER SCHEMA
 const userSchema = new mongoose.Schema<IUser>({
     user_name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase:true },
     password: { type: String },
     isVerified: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
+    deviceTokens: {type: [DeviceTokenSchema], default: []},
     isActive: { type: String, enum: [...Object.keys(IsActiveUser)] , default: IsActiveUser.ACTIVE },
     role: { type: String, enum: [...Object.values(Role)], default: Role.VENDOR },
     auths: [authProviderSchema]

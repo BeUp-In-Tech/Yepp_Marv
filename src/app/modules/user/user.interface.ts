@@ -17,6 +17,21 @@ export enum IsActiveUser {
     BLOCKED = "BLOCKED"
 }
 
+export enum IPlatform {
+    WEB = 'WEB',
+    IOS = 'IOS',
+    ANDROID = 'ANDROID'
+}
+
+export interface IFcmToken {
+    deviceId: string;
+    platform: IPlatform;
+    token: string;
+    deviceName: string;
+    lastSeenAt: Date;
+    isActive: boolean;
+}
+
 export interface IUser {
     _id?: Types.ObjectId;
     user_name: string;
@@ -25,6 +40,7 @@ export interface IUser {
     isVerified?: boolean;
     isDeleted?: boolean;
     isActive?: IsActiveUser;
+    deviceTokens: IFcmToken[];
     role?: Role;
     auths?: IAuthProvider[]
 }
