@@ -20,6 +20,9 @@ interface EnvInterfaces {
   CLOUDINARY_API_KEY: string;
   CLOUDINARY_NAME: string;
 
+  ADMIN_MAIL: string;
+  ADMIN_PASSWORD: string;
+
   REDIS_HOST: string;
   REDIS_PORT: string;
 
@@ -57,6 +60,9 @@ const loadEnvVarbles = (): EnvInterfaces => {
     'CLOUDINARY_NAME',
     'CLOUDINARY_SECRET',
     'CLOUDINARY_API_KEY',
+
+    'ADMIN_MAIL',
+    'ADMIN_PASSWORD',
 
     'REQUEST_RATE_LIMIT',
     'REQUEST_RATE_LIMIT_TIME',
@@ -102,6 +108,9 @@ const loadEnvVarbles = (): EnvInterfaces => {
     CLOUDINARY_SECRET: process.env.CLOUDINARY_SECRET as string,
     CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY as string,
     CLOUDINARY_NAME: process.env.CLOUDINARY_NAME as string,
+
+    ADMIN_MAIL: process.env.ADMIN_MAIL as string,
+    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD as string,
 
     REQUEST_RATE_LIMIT_TIME: Number(process.env.REQUEST_RATE_LIMIT_TIME) as number,
     REQUEST_RATE_LIMIT:Number( process.env.REQUEST_RATE_LIMIT) as number,

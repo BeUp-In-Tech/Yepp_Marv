@@ -38,8 +38,30 @@ const  getShopDetails = CatchAsync(async (req: Request, res: Response, next: Nex
 });
 
 
+const updateShop = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+       
+    const user = req.user as JwtPayload;
+    const  shopId  = req.params.shopId as string;
+     const payload = {
+      ...req.body,
+      business_logo: req.file?.path as string
+    };
+
+    
+    const result = await shopServices.updateShopService(user.userId, shopId, payload);
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Shop updated",
+        data: result
+    })
+});
+
+
+
 
 export const shopController = {
     createShop,
-    getShopDetails
+    getShopDetails,
+    updateShop
 }
