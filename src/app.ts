@@ -10,17 +10,24 @@ import env from './app/config/env';
 import expressSession from 'express-session';
 import passport from 'passport';
 import './app/config/passport.config'
+import http from 'http'
+import { initSocket } from './app/socket/socket';
 
 
 const app = express();
+const server = http.createServer(app);
 
+// Init socket connection
+initSocket(server);
+
+
+app.set('trust proxy', 1);
 app.use(expressSession({
   secret: env.EXPRESS_SESSION_SECRET,
   resave: false,
   saveUninitialized: false
 }));
 
-app.set('trust proxy', 1);
 app.use(passport.initialize()); // Initilazed Passport
 app.use(passport.session()); // Create a session
 app.use(express.json());
@@ -51,4 +58,4 @@ app.use(globalErrorHandler);
 // NO ROUTE MATCH
 app.use(NotFound);
 
-export default app;
+export default server;
