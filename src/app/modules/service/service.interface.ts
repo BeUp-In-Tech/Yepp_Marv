@@ -1,0 +1,20 @@
+import { Types } from "mongoose";
+
+
+export interface IService {
+    shop: Types.ObjectId;
+    category: Types.ObjectId;
+    activePromotion?: Types.ObjectId;
+    title: string;
+    reguler_price: number;
+    discount: number;
+    highlight: string[];
+    description: string;
+    coupon_code?: string;
+    isPromoted?: boolean;
+    promotedUntil?: Date;
+    qr_code?: string;
+    upc_code?: string;
+    total_views?: number;
+    total_impression?: number;
+}   
