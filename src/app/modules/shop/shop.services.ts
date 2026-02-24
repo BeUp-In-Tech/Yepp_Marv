@@ -24,7 +24,7 @@ interface ShopCreatePayload {
 
 
 // CREATE SHOP
-export const createShopService = async (userId: string, payload: ShopCreatePayload) => {
+const createShopService = async (userId: string, payload: ShopCreatePayload) => {
   if (!payload.shop.business_logo) throw new Error("business_logo missing"); // controller bug catch
 
   const vendorId = new Types.ObjectId(userId);
@@ -92,10 +92,36 @@ export const createShopService = async (userId: string, payload: ShopCreatePaylo
 };
 
 // GET SHOP DETAILS
-const getShopDetailsService = async (userId: string) => {
-  const isShopExist = await Shop.findOne({ vendor: userId });
+const getShopDetailsService = async (userId: string, shopId?: string) => {
+  const _userId = new Types.ObjectId(userId);
+  const _shopId = new Types.ObjectId(shopId);
 
-  if (!isShopExist) {
+  // Match query
+  const matchQuery: Record<string, Types.ObjectId> = {};
+  if (shopId) {
+    matchQuery._id = _shopId
+  }else {
+    matchQuery.vendor = _userId
+  }
+ 
+
+  // Aggregate shop 
+  const isShopExist = await Shop.aggregate([
+    {
+      $match: matchQuery
+    },
+
+    {
+      $lookup: {
+        from: "outlets",
+        localField: "_id",
+        foreignField: "shop",
+        as: "outlets"
+      }
+    }
+  ]);
+
+  if (!isShopExist || isShopExist.length === 0) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
   }
 

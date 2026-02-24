@@ -58,10 +58,6 @@ export const updateShopValidationSchema = z.object({
   description: z.string().min(10, 'Description too short').max(1000).optional(),
   shop_approval: z.nativeEnum(ShopApproval).optional(),
 
-  coord: z
-    .tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)])
-    .optional(),
-
   zip_code: z.string().min(3).max(15).optional(),
   website: z.string().url('Invalid website URL').optional(),
 });
