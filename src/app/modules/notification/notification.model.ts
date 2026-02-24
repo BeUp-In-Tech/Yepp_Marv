@@ -1,14 +1,11 @@
-import { INotification, NotificationType } from "./notification.interface";
-import { model, Schema } from "mongoose";
-
-
+import { INotification, NotificationType } from './notification.interface';
+import { model, Schema } from 'mongoose';
 
 const NotificationSchema = new Schema<INotification>(
   {
-
     user: {
-        type: Schema.Types.ObjectId,
-        required: true
+      type: Schema.Types.ObjectId,
+      required: true,
     },
 
     title: {
@@ -29,8 +26,8 @@ const NotificationSchema = new Schema<INotification>(
     },
 
     isRead: {
-        type: Boolean,
-        default: false
+      type: Boolean,
+      default: false,
     },
 
     entityId: {
@@ -48,6 +45,11 @@ const NotificationSchema = new Schema<INotification>(
       type: String,
       required: true,
     },
+    data: {
+      type: Map,
+      of: String,
+      default: {},
+    },
   },
   {
     timestamps: true,
@@ -57,6 +59,6 @@ const NotificationSchema = new Schema<INotification>(
 NotificationSchema.index({ user: 1, isRead: 1, createdAt: -1 });
 
 export const NotificationModel = model<INotification>(
-  "notification",
+  'notification',
   NotificationSchema
 );

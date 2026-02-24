@@ -20,4 +20,5 @@ export interface INotification {
     entityId: string;
     webUrl: string;
     deepLink: string;
+    data?: Record<string, string>;
 }
