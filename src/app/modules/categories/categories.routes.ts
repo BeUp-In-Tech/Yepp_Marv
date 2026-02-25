@@ -13,7 +13,7 @@ const router = Router();
 router.post('/', multerUpload.single('file'), checkAuth(Role.ADMIN), validateRequest(categoryZodSchema), categoryControllers.createCategory);
 
 // GET CATEGORY
-router.get('/', checkAuth(Role.ADMIN), categoryControllers.getCategories);
+router.get('/', checkAuth(...Object.keys(Role)), categoryControllers.getCategories);
 
 // UPDATE CATEGORY
 router.patch('/:categoryId', multerUpload.single('file'), checkAuth(Role.ADMIN), validateRequest(categoryUpdateZodSchema), categoryControllers.updateCategory);
