@@ -1,5 +1,11 @@
 import { Types } from "mongoose";
 
+export enum CouponType {
+    COUPON_CODE = 'COUPON_CODE',
+    QR_CODE = 'QR_CODE',
+    UPC_CODE = 'UPC_CODE',
+    NONE = 'NONE'
+}
 
 export interface IService {
     shop: Types.ObjectId;
@@ -10,11 +16,15 @@ export interface IService {
     discount: number;
     highlight: string[];
     description: string;
-    coupon_code?: string;
+    images: string[];
     isPromoted?: boolean;
     promotedUntil?: Date;
-    qr_code?: string;
-    upc_code?: string;
+    couponType: CouponType,
+    coupon: {
+        coupon_code?: string;
+        qr_code?: string;
+        upc_code?: string;
+    }
     total_views?: number;
     total_impression?: number;
 }   
