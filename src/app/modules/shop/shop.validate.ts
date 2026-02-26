@@ -34,8 +34,6 @@ export const shopValidationSchema = z.object({
       .min(10, "Description too short")
       .max(1000),
 
-    zip_code: z.string().min(3).max(15),
-
     website: z
       .string()
       .url("Invalid website URL")
