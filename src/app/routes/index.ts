@@ -4,6 +4,7 @@ import { vendorRoutes } from '../modules/user/user.routes';
 import { shopRouter } from '../modules/shop/shop.routes';
 import { categoryRouter } from '../modules/categories/categories.routes';
 import { outletRouter } from '../modules/outlet/outlet.routes';
+import { serviceRouter } from '../modules/service/service.routes';
 
 export const router = Router();
 
@@ -27,6 +28,10 @@ const moduleRoutes = [
    {
     path: '/outlet',
     route: outletRouter
+   }, 
+   {
+    path: '/service',
+    route: serviceRouter
    }, 
 ];
 

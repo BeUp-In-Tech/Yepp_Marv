@@ -7,6 +7,7 @@ export enum CouponType {
     NONE = 'NONE'
 }
 
+
 export interface IService {
     shop: Types.ObjectId;
     category: Types.ObjectId;

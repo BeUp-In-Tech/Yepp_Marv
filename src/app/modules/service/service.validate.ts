@@ -3,7 +3,6 @@ import { CouponType } from "./service.interface";
 
 
 const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId");
-const httpsUrl = z.string().url().refine((u) => u.startsWith("https://"), "Only https URLs allowed");
 
 const couponSchema = z.object({
   coupon_code: z.string().min(3).max(40).optional(),
@@ -17,7 +16,6 @@ export const CreateServiceZodSchema = z
   .object({
     shop: objectId,
     category: objectId,
-    activePromotion: objectId.optional(),
 
     title: z.string().min(2).max(120).trim(),
     reguler_price: z.number().nonnegative(),
@@ -25,8 +23,6 @@ export const CreateServiceZodSchema = z
 
     highlight: z.array(z.string().min(1).max(120)).max(20).default([]),
     description: z.string().min(10).max(5000).trim(),
-
-    images: z.array(httpsUrl).min(1).max(15),
 
     couponType: z.nativeEnum(CouponType),
     coupon: couponSchema.default({}),
@@ -44,7 +40,7 @@ export const CreateServiceZodSchema = z
       });
     }
 
-    if (val.couponType === CouponType.QR_CODE && !val.coupon?.qr_code) {
+    if (val.couponType === CouponType.QR_CODE && !val.coupon?.coupon_code) {
       // If you plan to system-generate QR, then remove this requirement
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -74,31 +70,3 @@ export const CreateServiceZodSchema = z
       }
     }
   });
-
-
-  // UPDATE ZOD SCHEMA
-  export const UpdateServiceZodSchema = CreateServiceZodSchema.partial().superRefine((val, ctx) => {
-  // Only validate couponType requirements if couponType is being changed OR coupon is being sent
-  const touchedCoupon = val.couponType !== undefined || val.coupon !== undefined;
-
-  if (touchedCoupon) {
-    const type = val.couponType;
-    const c = val.coupon || {};
-
-    if (type === CouponType.COUPON_CODE && !c.coupon_code) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["coupon", "coupon_code"], message: "coupon_code required for COUPON_CODE" });
-    }
-    if (type === CouponType.QR_CODE && !c.qr_code) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["coupon", "qr_code"], message: "qr_code required for QR_CODE" });
-    }
-    if (type === CouponType.UPC_CODE && !c.upc_code) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["coupon", "upc_code"], message: "upc_code required for UPC_CODE" });
-    }
-    if (type === CouponType.NONE) {
-      const hasAny = !!c.coupon_code || !!c.qr_code || !!c.upc_code;
-      if (hasAny) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["coupon"], message: "coupon must be empty for NONE" });
-      }
-    }
-  }
-});

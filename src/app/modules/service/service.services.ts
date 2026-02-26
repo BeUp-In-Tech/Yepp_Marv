@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ServiceModel } from './service.model';
 import { Types } from 'mongoose';
-import {  IService } from './service.interface';
+import {  CouponType, IService } from './service.interface';
 import { JwtPayload } from 'jsonwebtoken';
 import { Shop } from '../shop/shop.model';
 import { Role } from '../user/user.interface';
 import AppError from '../../errorHelpers/AppError';
 import StatusCodes from 'http-status-codes';
+import env from '../../config/env';
 
 export async function createService(params: {
   user: JwtPayload;
@@ -51,15 +52,29 @@ export async function createService(params: {
   // 4) Single-write QR auto generation (generate _id first)
   const _id = new Types.ObjectId();
 
-  /*
-  
-  Handle Coupon_code, Upc_code, qr_code here
-
-  
-  
-  
-  */
  
+  // Handle Coupon_code, Upc_code, qr_code here
+  let coupon: Record<string, string> = {};
+
+  if (payload.couponType === CouponType.COUPON_CODE) {
+    coupon.coupon_code = payload.coupon.coupon_code as string;
+  }
+
+  switch (payload.couponType) {
+    case CouponType.COUPON_CODE:
+      coupon.coupon_code = payload.coupon.coupon_code as string;
+      break
+    case CouponType.QR_CODE:
+      coupon.coupon_code = payload.coupon.coupon_code as string;
+      coupon.qr_code = `${env.BACKEND_URL}/api/v1/s/${_id}?type=${CouponType.QR_CODE}`;
+      break
+    case CouponType.UPC_CODE:
+      coupon.coupon_code = payload.coupon.coupon_code as string;
+      coupon.upc_code = payload.coupon.upc_code as string;
+      break
+    default: 
+    coupon = {...payload.coupon }
+  }
 
   // 5) Create
   const finalPayload = {
@@ -74,14 +89,18 @@ export async function createService(params: {
     highlight,
     description: payload.description,
     images,
-
-    // promotion (you can later refuser to promotedUntil only)
-    isPromoted: payload.isPromoted ?? false,
-    promotedUntil: payload.promotedUntil ?? null,
-
+ 
     couponType: payload.couponType,
+    coupon
   };
   const doc = await ServiceModel.create(finalPayload);
 
   return doc;
+}
+
+
+
+
+export const servicesLayer = {
+  createService
 }
