@@ -104,6 +104,17 @@ const createService = async (params: {
 }
 
 
+// GET SINGLE SERVICE
+const getSingleService = async (serviceId: string) => {
+  const isServiceExist = await ServiceModel.findById(serviceId).lean();
+  if (!isServiceExist) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Service not found");
+  }
+
+  return isServiceExist;
+}
+
+
 // 2. DELETE SERVICE 
 const deleteService = async (user: JwtPayload, serviceId: string) => {
   if (user.role !== Role.VENDOR ) {
@@ -241,7 +252,8 @@ export const updateService = async (user: JwtPayload, serviceId: string, payload
 export const servicesLayer = {
   createService,
   deleteService,
-  updateService
+  updateService,
+  getSingleService
 }
 
 

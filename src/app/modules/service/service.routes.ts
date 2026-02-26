@@ -20,6 +20,12 @@ router.post(
   serviceControllers.createService
 );
 
+// GET SINGLE SERVICE
+router.get(
+  '/:serviceId',
+  serviceControllers.getSingleService
+);
+
 // DELETE SERVICE
 router.delete(
   '/:serviceId',

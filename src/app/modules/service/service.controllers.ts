@@ -30,6 +30,20 @@ const createService = CatchAsync(async (req: Request, res: Response, next: NextF
 
 
 
+// GET SINGLE SERVICE
+const getSingleService = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const serviceId = req.params.serviceId as string;
+    const result = await servicesLayer.getSingleService( serviceId );
+
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Service fetched",
+        data: result
+    })
+});
+
+
 // DELETE SHOP
 const deleteService = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
@@ -73,5 +87,6 @@ const updateService = CatchAsync(async (req: Request, res: Response, next: NextF
 export const serviceControllers = {
     createService,
     deleteService,
-    updateService
+    updateService,
+    getSingleService
 }
