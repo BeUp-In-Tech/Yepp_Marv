@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ServiceModel } from './service.model';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import {  CouponType, IService } from './service.interface';
 import { JwtPayload } from 'jsonwebtoken';
 import { Shop } from '../shop/shop.model';
@@ -8,13 +8,14 @@ import { Role } from '../user/user.interface';
 import AppError from '../../errorHelpers/AppError';
 import StatusCodes from 'http-status-codes';
 import env from '../../config/env';
+import { deleteImageFromCLoudinary } from '../../config/cloudinary.config';
 
 
-// CREATE SERVICE
-export async function createService(params: {
+// 1. CREATE SERVICE
+const createService = async (params: {
   user: JwtPayload;
   payload: IService; // used for auto QR URL
-}) {
+}) => {
   const { user, payload } = params;
 
   // 1) Convert ids once
@@ -82,6 +83,7 @@ export async function createService(params: {
   const finalPayload = {
     _id,
     shop: shopId,
+    user: new mongoose.Types.ObjectId(user.userId),
     category: categoryId,
 
     title: payload.title,
@@ -101,8 +103,52 @@ export async function createService(params: {
 }
 
 
+// 2. Service Delete API
+const deleteService = async (user: JwtPayload, serviceId: string) => {
+  if (user.role !== Role.VENDOR ) {
+    throw new AppError(StatusCodes.FORBIDDEN, "Only vendor can delete");
+  }
 
+
+  // Check is service exist
+  const isServiceExist = await ServiceModel.findById(serviceId);
+  if (!isServiceExist) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Service not found");
+  }
+
+    // 3. Check if the vendor owns the service by shop
+  const isShopOwner = await Shop.exists({ _id: isServiceExist.shop, vendor: user.userId });
+  if (!isShopOwner) {
+    throw new AppError(StatusCodes.UNAUTHORIZED, "You are not authorized to delete this service");
+  }
+
+  const deleteService = await ServiceModel.deleteOne({ _id: serviceId });
+  
+  if (deleteService.deletedCount > 0) {
+   /*
+   ========================================================================
+    DELETE EXTERNAL DATA FROM OTHERS COLLECTION BY THIS ID
+   ========================================================================
+   */
+ }
+
+
+
+ // 6. Delete images asynchronously using promises
+ setImmediate( async() => {
+  try {
+    const imageDeletionPromises = isServiceExist.images.map(image => deleteImageFromCLoudinary(image));
+    await Promise.all(imageDeletionPromises);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error("Error deleting images from Cloudinary:", error);
+  }
+ })
+
+  return null
+}
 
 export const servicesLayer = {
-  createService
+  createService,
+  deleteService
 }

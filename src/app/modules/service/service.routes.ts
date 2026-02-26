@@ -9,11 +9,15 @@ import { serviceControllers } from "./service.controllers";
 
 const router = Router();
 
+// SERVICE CREATE
 router.post('/', 
     checkAuth(Role.VENDOR), 
     multerUpload.array('files'), 
     validateRequest(CreateServiceZodSchema),  
-    serviceControllers.createShop);
+    serviceControllers.createService);
+
+// DELETE SERVICE
+router.delete('/:serviceId', checkAuth(Role.VENDOR), serviceControllers.deleteShop);
 
 
 export const serviceRouter = router;

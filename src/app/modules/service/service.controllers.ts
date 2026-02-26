@@ -7,7 +7,8 @@ import { servicesLayer } from "./service.services";
 import { JwtPayload } from "jsonwebtoken";
 
 
-const createShop = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+// CREATE SHOP
+const createService = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
 
     const payload = {
@@ -22,14 +23,31 @@ const createShop = CatchAsync(async (req: Request, res: Response, next: NextFunc
     SendResponse(res, {
         success: true,
         statusCode: StatusCodes.CREATED,
-        message: "Shop created",
+        message: "Service created",
         data: result
     })
 });
 
 
 
+// DELETE SHOP
+const deleteShop = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as JwtPayload;
+    const serviceId = req.params.serviceId as string;
+
+    const result = await servicesLayer.deleteService( user, serviceId );
+
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Service deleted",
+        data: result
+    })
+});
+
+
 
 export const serviceControllers = {
-    createShop
+    createService,
+    deleteShop
 }

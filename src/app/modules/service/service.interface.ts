@@ -11,6 +11,7 @@ export enum CouponType {
 export interface IService {
     shop: Types.ObjectId;
     category: Types.ObjectId;
+    user: Types.ObjectId;
     activePromotion?: Types.ObjectId;
     title: string;
     reguler_price: number;

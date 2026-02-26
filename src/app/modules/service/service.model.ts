@@ -24,6 +24,8 @@ const CouponSchema = new Schema(
 const ServiceSchema = new Schema(
   {
     shop: { type: Schema.Types.ObjectId, ref: "shop", required: true, index: true },
+    user: { type: Schema.Types.ObjectId, ref: "user", required: true },
+
     category: { type: Schema.Types.ObjectId, ref: "categories", required: true, index: true },
     activePromotion: { type: Schema.Types.ObjectId, ref: "promotion", default: null },
 
