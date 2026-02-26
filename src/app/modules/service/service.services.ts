@@ -9,6 +9,8 @@ import AppError from '../../errorHelpers/AppError';
 import StatusCodes from 'http-status-codes';
 import env from '../../config/env';
 
+
+// CREATE SERVICE
 export async function createService(params: {
   user: JwtPayload;
   payload: IService; // used for auto QR URL
