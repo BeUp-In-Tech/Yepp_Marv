@@ -17,7 +17,7 @@ const createShop = CatchAsync(async (req: Request, res: Response, next: NextFunc
      outlet: req.body.outlet
     };
     
-    const result = await shopServices.createShopService( user.userId, payload);
+    const result = await shopServices.createShopService( user, payload);
     SendResponse(res, {
         success: true,
         statusCode: StatusCodes.CREATED,

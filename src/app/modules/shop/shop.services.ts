@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { StatusCodes } from 'http-status-codes';
 import AppError from '../../errorHelpers/AppError';
@@ -8,30 +9,65 @@ import { deleteImageFromCLoudinary } from '../../config/cloudinary.config';
 import { Role } from '../user/user.interface';
 import mongoose, { Types } from 'mongoose';
 import { OutletModel } from '../outlet/outlet.model';
-
+import { JwtPayload } from 'jsonwebtoken';
 
 // Custom interface
 interface ShopCreatePayload {
   shop: IShop;
   outlet: {
-      // outlet_name: string;
-      address: string;
-      zip_code: string;
-      coordinates: [number, number];
-    }[]
-   
+    // outlet_name: string;
+    address: string;
+    zip_code: string;
+    coordinates: [number, number];
+  }[];
 }
 
-
 // CREATE SHOP
-const createShopService = async (userId: string, payload: ShopCreatePayload) => {
-  if (!payload.shop.business_logo) throw new Error("business_logo missing"); // controller bug catch
+const createShopService = async (
+  user: JwtPayload,
+  payload: ShopCreatePayload
+) => {
+  if (!payload.shop.business_logo) throw new Error('business_logo missing'); // controller bug catch
 
-  const vendorId = new Types.ObjectId(userId);
+  // CHECK USER VERIFIED
+  if (!user.isVerified) {
+    // Delete Image
+    if (payload.shop.business_logo) {
+      try {
+        await Promise.resolve(
+          deleteImageFromCLoudinary(payload.shop.business_logo)
+        );
+      } catch (error: any) {
+        console.log('Cloudinary image delete error: ', error.message);
+      }
+    }
+
+    // Throw Error
+    throw new AppError(StatusCodes.BAD_REQUEST, 'Verify your profile');
+  }
+
+
+  const vendorId = new Types.ObjectId(user.userId);
 
   // Security rule: 1 vendor => 1 shop (remove if you allow multiple)
-  const alreadyHasShop = await Shop.findOne({ vendor: vendorId }).select("_id").lean();
-  if (alreadyHasShop) throw new Error("Shop already exists for this vendor");
+  const alreadyHasShop = await Shop.findOne({ vendor: vendorId })
+    .select('_id')
+    .lean();
+  if (alreadyHasShop) {
+    // Delete Image
+    if (payload.shop.business_logo) {
+      try {
+        await Promise.resolve(
+          deleteImageFromCLoudinary(payload.shop.business_logo)
+        );
+      } catch (error: any) {
+        console.log('Cloudinary image delete error: ', error.message);
+      }
+    }
+
+    // Thorw Error
+    throw new Error('Shop already exists for this vendor');
+  }
 
   const session = await mongoose.startSession();
 
@@ -49,7 +85,7 @@ const createShopService = async (userId: string, payload: ShopCreatePayload) => 
           business_logo: payload.shop.business_logo,
           description: payload.shop.description.trim(),
           website: payload.shop.website?.trim(),
-          coord: payload.shop.coord
+          coord: payload.shop.coord,
         },
       ],
       { session }
@@ -63,7 +99,7 @@ const createShopService = async (userId: string, payload: ShopCreatePayload) => 
       address: o.address.trim(),
       zip_code: o.zip_code.trim(),
       location: {
-        type: "Point",
+        type: 'Point',
         coordinates: [...o.coordinates],
       },
     }));
@@ -100,26 +136,25 @@ const getShopDetailsService = async (userId: string, shopId?: string) => {
   // Match query
   const matchQuery: Record<string, Types.ObjectId> = {};
   if (shopId) {
-    matchQuery._id = _shopId
-  }else {
-    matchQuery.vendor = _userId
+    matchQuery._id = _shopId;
+  } else {
+    matchQuery.vendor = _userId;
   }
- 
 
-  // Aggregate shop 
+  // Aggregate shop
   const isShopExist = await Shop.aggregate([
     {
-      $match: matchQuery
+      $match: matchQuery,
     },
 
     {
       $lookup: {
-        from: "outlets",
-        localField: "_id",
-        foreignField: "shop",
-        as: "outlets"
-      }
-    }
+        from: 'outlets',
+        localField: '_id',
+        foreignField: 'shop',
+        as: 'outlets',
+      },
+    },
   ]);
 
   if (!isShopExist || isShopExist.length === 0) {
@@ -224,8 +259,6 @@ const updateShopService = async (
 
   return updatedShop;
 };
-
-
 
 export const shopServices = {
   createShopService,
