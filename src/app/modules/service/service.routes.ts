@@ -20,6 +20,9 @@ router.post(
   serviceControllers.createService
 );
 
+// GET MY SERVICE
+router.get('/my_deals', checkAuth(Role.VENDOR), serviceControllers.getMyDeals);
+
 // GET SINGLE SERVICE
 router.get(
   '/:serviceId',
@@ -40,5 +43,7 @@ router.patch(
   validateRequest(UpdateServiceZodSchema),
   serviceControllers.updateService
 );
+
+
 
 export const serviceRouter = router;

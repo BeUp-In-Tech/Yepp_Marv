@@ -71,7 +71,6 @@ const updateService = CatchAsync(async (req: Request, res: Response, next: NextF
         : [],
     };
     
-
     const result = await servicesLayer.updateService( user, serviceId, payload);
 
     SendResponse(res, {
@@ -83,10 +82,25 @@ const updateService = CatchAsync(async (req: Request, res: Response, next: NextF
 });
 
 
+// DELETE SHOP
+const getMyDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as JwtPayload;
+    const result = await servicesLayer.getMyService( user.userId );
+
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Fetched deals",
+        data: result
+    })
+});
+
+
 
 export const serviceControllers = {
     createService,
     deleteService,
     updateService,
-    getSingleService
+    getSingleService,
+    getMyDeals
 }

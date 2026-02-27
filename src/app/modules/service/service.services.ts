@@ -166,7 +166,7 @@ const deleteService = async (user: JwtPayload, serviceId: string) => {
  * @returns The updated service
  */
 
-export const updateService = async (user: JwtPayload, serviceId: string, payload: IService) => {
+const updateService = async (user: JwtPayload, serviceId: string, payload: IService) => {
   // CHECK IF THE SERVICE EXISTS
   const service = await ServiceModel.findById(serviceId);
   if (!service) {
@@ -248,12 +248,19 @@ export const updateService = async (user: JwtPayload, serviceId: string, payload
   return updatedService;
 };
 
+// 4. GET MY SERVICE
+const getMyService = async (userId: string) => {
+  const deals = await ServiceModel.find({ user: userId });
+  return deals;
+}
+
 
 export const servicesLayer = {
   createService,
   deleteService,
   updateService,
-  getSingleService
+  getSingleService,
+  getMyService
 }
 
 
