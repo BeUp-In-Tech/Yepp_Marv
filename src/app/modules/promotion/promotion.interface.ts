@@ -11,7 +11,7 @@ export enum PromotionStatus {
 
 
 export interface IPromotion extends Document {
-  vendor?: Types.ObjectId; 
+  user?: Types.ObjectId; 
   shop: Types.ObjectId;
   service: Types.ObjectId;
   payment: Types.ObjectId;
@@ -20,9 +20,7 @@ export interface IPromotion extends Document {
   startAt: Date;
   endAt: Date;
   status: PromotionStatus;
-  // audit / control
   canceledAt?: Date;
-  // helpful metadata
   note?: string;
   createdAt: Date;
   updatedAt: Date;
