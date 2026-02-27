@@ -8,6 +8,7 @@ import { multerUpload } from '../../config/multer.config';
 
 const router = Router();
 
+// CREATE PLAN
 router.post(
   '/',
   checkAuth(Role.ADMIN),
@@ -15,5 +16,8 @@ router.post(
   validateRequest(planCreateZodSchema),
   planControllers.createPlan
 );
+
+// GET PLAN 
+router.get('/', planControllers.getPlan);
 
 export const planRouter = router;

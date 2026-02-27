@@ -7,6 +7,7 @@ import { JwtPayload } from "jsonwebtoken";
 import { planServices } from "./plan.service";
 
 
+// CREATE PLAN
 const createPlan = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
     const payload = {
@@ -23,6 +24,20 @@ const createPlan = CatchAsync(async (req: Request, res: Response, next: NextFunc
 });
 
 
+// GET PLAN
+const getPlan = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+
+    const result = await planServices.getPlanService();
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Plan fetched",
+        data: result
+    })
+});
+
+
 export const planControllers = {
-    createPlan
+    createPlan,
+    getPlan
 }

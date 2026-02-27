@@ -8,7 +8,7 @@ import { StatusCodes } from "http-status-codes";
 import { Plan } from "./plan.model";
 import { deleteImageFromCLoudinary } from "../../config/cloudinary.config";
 
-
+// CREATE PLAN
 const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
 
     // ENSURE USER IS ADMIN
@@ -62,8 +62,12 @@ const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
     return plan;
 } 
 
+// GET PLAN
+const getPlanService = async () => await Plan.find();
+
 
 
 export const planServices = {
-    createPlanService
+    createPlanService,
+    getPlanService
 }
