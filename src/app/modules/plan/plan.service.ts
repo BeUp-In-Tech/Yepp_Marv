@@ -6,7 +6,7 @@ import { StatusCodes } from 'http-status-codes';
 import { Plan } from './plan.model';
 import { asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 
-// 1.CREATE PLAN
+// =====1.CREATE PLAN=====
 const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
   // ENSURE USER IS ADMIN
   if (authUser.role !== Role.ADMIN) {
@@ -18,6 +18,17 @@ const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
     // Throw Error
     throw new AppError(StatusCodes.UNAUTHORIZED, 'Your are unauthorized');
   }
+
+
+  // CHECK IF ALREADY A PLAN EXIST BY THE SAME DURATION
+  const isPlan = await Plan.findOne({ durationDays: payload.durationDays });
+  if (isPlan) {
+    if (payload.icon) {
+      await asynSingleImageDelete(payload.icon); // Delete image
+    }
+    throw new AppError(StatusCodes.BAD_REQUEST, "Already a plan exist by same duration");
+  }
+
 
   // ENSURE PRICE IS NOT NEGATIVE OR DECIMAL
   if (payload.price < 0 || !Number.isInteger(payload.price)) {
@@ -52,10 +63,10 @@ const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
   return plan;
 };
 
-// 2.GET PLAN
+// ======2.GET PLAN========
 const getPlanService = async () => await Plan.find();
 
-// 3.UPDATE PLAN
+// =======3.UPDATE PLAN======
 const updatePlanService = async (user: JwtPayload, planId: string, payload: Partial<IPlan>) => {
   // AUTHENTICATED USER IS ADMIN
   if (user.role !== Role.ADMIN) {
