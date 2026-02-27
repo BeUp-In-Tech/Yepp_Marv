@@ -1,5 +1,4 @@
-/* eslint-disable no-console */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ /* eslint-disable @typescript-eslint/no-explicit-any */
 import { StatusCodes } from 'http-status-codes';
 import AppError from '../../errorHelpers/AppError';
 import User from '../user/user.model';
@@ -10,6 +9,7 @@ import { Role } from '../user/user.interface';
 import mongoose, { Types } from 'mongoose';
 import { OutletModel } from '../outlet/outlet.model';
 import { JwtPayload } from 'jsonwebtoken';
+import { asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 
 // Custom interface
 interface ShopCreatePayload {
@@ -29,17 +29,19 @@ const createShopService = async (
 ) => {
   if (!payload.shop.business_logo) throw new Error('business_logo missing'); // controller bug catch
 
-  // CHECK USER VERIFIED
-  if (!user.isVerified) {
-    // Delete Image
+  const isUser = await User.findById(user.userId);
+  if (!isUser) {
     if (payload.shop.business_logo) {
-      try {
-        await Promise.resolve(
-          deleteImageFromCLoudinary(payload.shop.business_logo)
-        );
-      } catch (error: any) {
-        console.log('Cloudinary image delete error: ', error.message);
-      }
+       await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
+    }
+    throw new AppError (StatusCodes.NOT_FOUND, "User not found");
+  }
+  
+
+  // CHECK USER VERIFIED
+  if (!isUser.isVerified) {
+    if (payload.shop.business_logo) {
+       await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
     }
 
     // Throw Error
@@ -54,15 +56,8 @@ const createShopService = async (
     .select('_id')
     .lean();
   if (alreadyHasShop) {
-    // Delete Image
     if (payload.shop.business_logo) {
-      try {
-        await Promise.resolve(
-          deleteImageFromCLoudinary(payload.shop.business_logo)
-        );
-      } catch (error: any) {
-        console.log('Cloudinary image delete error: ', error.message);
-      }
+       await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
     }
 
     // Thorw Error
