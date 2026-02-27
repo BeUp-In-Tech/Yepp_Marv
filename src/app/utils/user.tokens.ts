@@ -6,8 +6,7 @@ export const createUserTokens = async (user: JwtPayload) => {
   const jwtPayload  = {
     userId: user?._id,
     email: user?.email,
-    role: user?.role,
-    isVerified: user?.isVerified
+    role: user?.role
   };
 
   // Jsonwebtoken
