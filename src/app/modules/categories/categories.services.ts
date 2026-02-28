@@ -7,7 +7,11 @@ import { ICategories } from "./categories.interface";
 import { Category } from "./categories.model";
 import { Role } from "../user/user.interface";
 import { deleteImageFromCLoudinary } from "../../config/cloudinary.config";
+import { redisClient } from "../../config/redis.config";
 
+
+// CATEGORY CACHE KEY FOR  CATEGORY DATA
+ const cacheKey = `categories`;
 
 // CREATE CATEGORY
 const createCategoryService = async (userId: string  ,payload: Partial<ICategories>) => {
@@ -29,14 +33,33 @@ const createCategoryService = async (userId: string  ,payload: Partial<ICategori
     };
 
 
-    // Create and return category
+    // Create 
     const category = await Category.create(payload);
+
+    // Clear old redis data
+    redisClient.del(cacheKey);
+
+    // Return created final data
     return category;
 }
 
 // GET ALL CATEGORIES
 const getCategoriesService = async (isDeleted: boolean) => {
-    const categories = await Category.find({ isDeleted })
+
+    // SEND RESPONSE FROM REDIS
+    const getRedisCategories = await redisClient.get(cacheKey);
+    if (getRedisCategories) {
+        return JSON.parse(getRedisCategories);
+    }
+
+    const categories = await Category.find({ isDeleted });
+
+    // Store data in redis
+    redisClient.set(cacheKey, JSON.stringify(categories), { 
+        EX: 10 * 60 // 10 min
+    })
+ 
+    // Return final data
     return categories;
 };
 
@@ -65,7 +88,12 @@ const updateCategoryService = async (categoryId: string, userId: string, payload
         } catch (error: any) {
             console.log("Image delete error", error.message)
         }
-    })
+    });
+
+     // Clear old redis data
+    redisClient.del(cacheKey);
+
+    // Return updated data
     return update;
 }
 
@@ -83,6 +111,10 @@ const deleteCategoryService = async (userId: string, categoryId: string) => {
 
     const deleteCategory = await Category.findByIdAndUpdate(categoryId, {isDeleted: true}, {runValidators: true, new: true});
 
+     // Clear old redis data
+    redisClient.del(cacheKey);
+
+    // Return delete response
     return deleteCategory;
 
 }
