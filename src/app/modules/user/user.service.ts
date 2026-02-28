@@ -82,16 +82,28 @@ const updateUserService = async (user: JwtPayload, payload: Partial<IUser>) => {
     runValidators: true,
     new: true,
   });
+
+  // INVALID OR CLEAR OLD DATA WHEN USER UPDATE HIS DATA
+  redisClient.del(`user_me:${update?._id}`);
+
+  // RETURN UPDATED DATA
   return update;
 };
 
 
 // 3. GET ME
 const getMeSerevice = async (userId: string) => {
+  const getRedisData = await redisClient.get(`user_me:${userId}`);
+  if (getRedisData) {
+    
+    return JSON.parse(getRedisData);
+  }
+  
   const _user = await User.findById(userId).select('-password').lean();
   if (!_user) {
     throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
+  
 
   const isShopExist = await Shop.findOne({ vendor: _user._id }).lean().select("_id");
   
@@ -104,7 +116,12 @@ const getMeSerevice = async (userId: string) => {
     deviceTokens: _user.deviceTokens,
     isShopCreated: isShopExist ? true : false
   }
-   
+
+  // Store User into redis
+  redisClient.set(`user_me:${userId}`, JSON.stringify(user), {
+    EX: 10 * 60 // 10 min
+  });
+
   return user;
 };
 
