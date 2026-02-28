@@ -2,11 +2,10 @@ import { Types } from "mongoose";
 
 
 export enum PromotionStatus {
-    SCHEDULED = 'SCHEDULED',
     ACTIVE = 'ACTIVE',
+    PENDING = 'PENDING',
     EXPIRED = 'EXPIRED',
-    CANCELED = 'CANCELED',
-    REFUNDED = 'REFUNDED'
+    CANCELED = 'CANCELED'
 }
 
 
@@ -17,11 +16,10 @@ export interface IPromotion extends Document {
   payment: Types.ObjectId;
   validityDays: number;
   price: number;
-  startAt: Date;
-  endAt: Date;
+  startAt?: Date;
+  endAt?: Date;
   status: PromotionStatus;
   canceledAt?: Date;
-  note?: string;
   createdAt: Date;
   updatedAt: Date;
 }

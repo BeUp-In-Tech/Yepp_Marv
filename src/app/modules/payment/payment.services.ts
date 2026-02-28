@@ -1,48 +1,202 @@
-import { JwtPayload } from "jsonwebtoken";
-import { Role } from "../user/user.interface";
-import AppError from "../../errorHelpers/AppError";
-import { StatusCodes } from "http-status-codes";
-import { ServiceModel } from "../service/service.model";
-import { Plan } from "../plan/plan.model";
-import { voucherServices } from "../voucher/voucher.services";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { JwtPayload } from 'jsonwebtoken';
+import { Role } from '../user/user.interface';
+import AppError from '../../errorHelpers/AppError';
+import { StatusCodes } from 'http-status-codes';
+import { ServiceModel } from '../service/service.model';
+import { Plan } from '../plan/plan.model';
+import { voucherServices } from '../voucher/voucher.services';
+import { stripe } from '../../config/stripe.config';
+import { Promotion } from '../promotion/promotion.model';
+import mongoose, { Types } from 'mongoose';
+import { Shop } from '../shop/shop.model';
+import { PromotionStatus } from '../promotion/promotion.interface';
+import { PaymentModel } from './payment.model';
+import { generateTransactionId } from '../../utils/generateTransactionId';
+import { PaymentProvider, PaymentStatus } from './payment.interface';
+import env from '../../config/env';
+import Stripe from 'stripe';
 
-
-interface StripePayload {
-    serviceId: string,
-    planId: string,
-    voucher?: string
-}
+// HELPER INTERFACE
 
 // STRIPE PAYMENT -> PROMOTE SERVICE
-const stripePay = async (user: JwtPayload, { serviceId, planId, voucher}: StripePayload ) => {
+const stripePay = async (
+  user: JwtPayload,
+  _serviceId: string,
+  _planId: string,
+  voucher: string
+) => {
+  const userId = new Types.ObjectId(user.userId);
+  const serviceId = new Types.ObjectId(_serviceId);
+  const planId = new Types.ObjectId(_planId);
 
-    if (user.role !== Role.VENDOR) {
-        throw new AppError(StatusCodes.UNAUTHORIZED, "You can't promote service");
+  /* ---------- VALIDATION (OUTSIDE TRANSACTION) ---------- */
+  if (user.role !== Role.VENDOR) {
+    throw new AppError(StatusCodes.UNAUTHORIZED, "You can't promote service");
+  }
+
+  const [service, plan, shop] = await Promise.all([
+    ServiceModel.findById(serviceId),
+    Plan.findById(planId),
+    Shop.findOne({ vendor: user.userId }),
+
+  ]);
+
+  if (!service) throw new AppError(StatusCodes.NOT_FOUND, 'Service not found');
+  if (!plan) throw new AppError(StatusCodes.NOT_FOUND, 'Plan not found');
+  if (!shop) throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
+
+  if (!service.shop.equals(shop._id)) {
+    throw new AppError(StatusCodes.FORBIDDEN, 'Invalid service');
+  }
+
+  // CHECK ALREADY PROMOTED
+  const alreadyPromoted = await Promotion.findOne({
+    user: userId,
+    shop: shop._id,
+    service: serviceId,
+    status: {
+      $in: [PromotionStatus.ACTIVE, PromotionStatus.PENDING],
+    },
+  });
+
+  if (alreadyPromoted) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      'This service already promoted'
+    );
+  }
+
+  /* ---------- PRICE CALCULATION ---------- */
+  let final_price = Number(plan.price);
+  const voucher_payload: Partial<{
+    voucher_id: Types.ObjectId;
+    voucher: string;
+  }> = {};
+
+  // APPLY VOUCHER, IF VOUCHER PROVIDE
+  if (voucher) {
+    try {
+      const { voucher_id, discount_parcantage } =
+        await voucherServices.applyVoucherService(user, voucher);
+
+      // UPDATE FINAL PRICE
+      final_price =
+        final_price - (final_price / 100) * Number(discount_parcantage);
+      voucher_payload.voucher_id = voucher_id;
+      voucher_payload.voucher = voucher;
+    } catch (err: any) {
+      throw new AppError(StatusCodes.BAD_REQUEST, err.message);
     }
+  }
 
-    const isServicePromise = ServiceModel.findById(serviceId);
-    const isPlanPromise = Plan.findById(planId);
+  /* ---------- TRANSACTION START ---------- */
 
-    const [service, plan] = await Promise.all([isServicePromise, isPlanPromise]);
+  const session = await mongoose.startSession();
+  let payment: any;
+  let promotion: any;
+  try {
+    session.startTransaction();
 
-    if (!service) {
-        throw new AppError(StatusCodes.NOT_FOUND, "Service not found");
-    }
+    const payment_id = new Types.ObjectId();
 
-    if (!plan) {
-        throw new AppError(StatusCodes.NOT_FOUND,"Plan not found");
-    }
+    promotion = await Promotion.create(
+      [
+        {
+          user: userId,
+          shop: shop._id,
+          service: service._id,
+          payment: payment_id,
+          validityDays: plan.durationDays,
+          price: final_price,
+          status: PromotionStatus.PENDING,
+        },
+      ],
+      { session }
+    );
 
-    if (voucher) {
-        const applyVoucher = await voucherServices.applyVoucherService(user, voucher);
-    }
+    payment = await PaymentModel.create(
+      [
+        {
+          _id: payment_id,
+          user: userId,
+          service: service._id,
+          promotion: promotion[0]._id,
+          transaction_id: generateTransactionId(),
+          amount: final_price,
+          voucher_applied: voucher ?? null,
+          provider: PaymentProvider.STRIPE,
+          payment_status: PaymentStatus.PENDING,
+        },
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+
+  /* ---------- STRIPE SESSION ---------- */
+  const totalAmountCents = Math.round(final_price * 100);
+
+  const stripePayload = {
+    payment_method_types: ['card'] as const,
+    line_items: [
+      {
+        price_data: {
+          currency: plan.currency.toLowerCase(),
+          product_data: {
+            name: service.title,
+            images: service.images,
+          },
+          unit_amount: totalAmountCents,
+        },
+        quantity: 1,
+      },
+    ],
+    mode: 'payment' as const,
+    expires_at: Math.floor(Date.now()/1000) + (30 * 60),
+    metadata: {
+      payment: payment[0]._id.toString(),
+      promotion: promotion[0]._id.toString(),
+      service: serviceId.toString(),
+      voucher_id: voucher_payload.voucher_id?.toString() ?? '',
+      voucher_code: voucher_payload.voucher ?? '',
+    },
+    success_url: `${env.FRONTEND_URL}/payment_success`,
+    cancel_url: `${env.FRONTEND_URL}/payment_cancel`,
+  } as Stripe.Checkout.SessionCreateParams;
+
+  const idempotencyKey = {
+    idempotencyKey: payment[0]._id.toString()
+  }
 
 
-    return null
-}
+  // STRIPE CHECKOUT
+  try {
+    const stripeSession = await stripe.checkout.sessions.create(stripePayload, idempotencyKey);
+    return { checkout_url: stripeSession.url };
+  } catch (error: any) {
+    // IF ERROR MAKE DB UPDATE WITH FAILED AND CANCELED 
+    await PaymentModel.updateOne(
+      { _id: payment[0]._id },
+      { payment_status: PaymentStatus.FAILED }
+    );
 
+    await Promotion.updateOne(
+      { _id: promotion[0]._id },
+      { status: PromotionStatus.CANCELED }
+    );
 
+    throw new AppError(StatusCodes.BAD_GATEWAY, error.message);
+  }
+};
 
+// EXPORT FUNCTION
 export const paymentService = {
-    stripePay
-}
+  stripePay,
+};

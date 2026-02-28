@@ -107,25 +107,9 @@ const applyVoucherService = async (user: JwtPayload, voucherCode: string) => {
     throw new Error("VOUCHER_LIMIT_EXCEEDED");
   }
 
-//   // ATOMIC DECREMENT TO PREVENT RACE CONDITION
-//   const redeemedVoucher = await Voucher.findOneAndUpdate(
-//     {
-//       _id: voucher._id,
-//       voucher_limit: { $gt: 0 },
-//     },
-//     {
-//       $inc: { voucher_limit: -1 },
-//     },
-//     {
-//       new: true,
-//     }
-//   ).lean();
-
-//   if (!redeemedVoucher) {
-//     throw new Error("REDEEM_FAILED");
-//   }
 
   return  {
+    voucher_id: voucher._id,
     discount_parcantage: voucher.voucher_discount,
     voucher_code: voucher.voucher_code
   };

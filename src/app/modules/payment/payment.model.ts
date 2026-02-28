@@ -29,11 +29,20 @@ const PaymentSchema = new Schema<IPayment>(
       required: true,
       min: 0
     },
+    payment_geteway_charge: {
+      type: Number,
+      min: 0
+    },
     currency: {
       type: String,
       uppercase: true,
       trim: true,
       default: 'USD'
+    },
+    voucher_applied: {
+      type: String,
+      uppercase: true,
+      trim: true
     },
     provider: {
       type: String,

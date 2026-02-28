@@ -15,11 +15,13 @@ export enum PaymentStatus {
 
 export interface IPayment {
     _id?: Types.ObjectId;
-    service: Types.ObjectId;
     user: Types.ObjectId;
+    service: Types.ObjectId;
     promotion?: Types.ObjectId;
     transaction_id: string;
     amount: number;
+    voucher_applied?: string | null;
+    payment_geteway_charge?: number;
     currency?: string;
     provider: PaymentProvider;
     payment_status: PaymentStatus;

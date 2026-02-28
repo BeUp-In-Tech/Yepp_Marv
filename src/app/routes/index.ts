@@ -7,6 +7,7 @@ import { outletRouter } from '../modules/outlet/outlet.routes';
 import { serviceRouter } from '../modules/service/service.routes';
 import { planRouter } from '../modules/plan/plan.routes';
 import { voucherRouter } from '../modules/voucher/voucher.routes';
+import { paymentRouter } from '../modules/payment/payment.routes';
 
 export const router = Router();
 
@@ -42,6 +43,10 @@ const moduleRoutes = [
    {
     path: '/voucher',
     route: voucherRouter
+   }, 
+   {
+    path: '/payment',
+    route: paymentRouter
    }, 
 ];
 
