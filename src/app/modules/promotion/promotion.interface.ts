@@ -12,7 +12,7 @@ export enum PromotionStatus {
 export interface IPromotion extends Document {
   user?: Types.ObjectId; 
   shop: Types.ObjectId;
-  service: Types.ObjectId;
+  deal: Types.ObjectId;
   payment: Types.ObjectId;
   validityDays: number;
   price: number;

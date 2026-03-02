@@ -16,7 +16,7 @@ const promotionSchema = new Schema<IPromotion>(
       required: true
     },
 
-    service: {
+    deal: {
       type: Schema.Types.ObjectId,
       ref: 'Service',
       required: true
