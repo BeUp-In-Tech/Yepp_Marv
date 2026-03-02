@@ -38,6 +38,11 @@ const promotionSchema = new Schema<IPromotion>(
       required: true
     },
 
+    stripe_session_id: {
+      type: String,
+      trim: true
+    },
+
     startAt: {
       type: Date
     },

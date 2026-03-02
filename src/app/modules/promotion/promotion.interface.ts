@@ -18,6 +18,7 @@ export interface IPromotion extends Document {
   price: number;
   startAt?: Date;
   endAt?: Date;
+  stripe_session_id?: string;
   status: PromotionStatus;
   canceledAt?: Date;
   createdAt: Date;
