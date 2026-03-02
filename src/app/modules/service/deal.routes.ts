@@ -21,6 +21,9 @@ router.post(
   dealsControllers.createDeals
 );
 
+// GET ALL DEALS
+router.get('/deals', dealsControllers.getAllDeals);
+
 // GET MY SERVICE
 router.get('/my_deals', checkAuth(Role.VENDOR), dealsControllers.getMyDeals);
 
@@ -45,8 +48,7 @@ router.patch(
   dealsControllers.updateSingleDeals
 );
 
-// GET ALL DEALS
-router.get('/deals', dealsControllers.getAllDeals);
+
 
 
 
