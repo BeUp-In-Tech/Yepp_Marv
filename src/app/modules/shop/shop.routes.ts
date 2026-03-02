@@ -12,7 +12,7 @@ const router = Router();
 // CREATE SHOP
 router.post('/create_shop', multerUpload.single('file'),  validateRequest(shopValidationSchema), checkAuth(Role.VENDOR),  shopController.createShop);
 // GET SHOP DETAILS
-router.get('/shop_details', checkAuth(Role.VENDOR),  shopController.getShopDetails);
+router.get('/shop_details', shopController.getShopDetails);
 // UPDATE SHOP
 router.patch('/update_shop/:shopId',  multerUpload.single('file'), validateRequest(updateShopValidationSchema), checkAuth(Role.VENDOR, Role.ADMIN),  shopController.updateShop);
 

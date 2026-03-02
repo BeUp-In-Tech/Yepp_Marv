@@ -15,7 +15,6 @@ import { asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 interface ShopCreatePayload {
   shop: IShop;
   outlet: {
-    // outlet_name: string;
     address: string;
     zip_code: string;
     coordinates: [number, number];
@@ -124,22 +123,17 @@ const createShopService = async (
 };
 
 // GET SHOP DETAILS
-const getShopDetailsService = async (userId: string, shopId?: string) => {
-  const _userId = new Types.ObjectId(userId);
+const getShopDetailsService = async (shopId: string) => {
   const _shopId = new Types.ObjectId(shopId);
 
-  // Match query
-  const matchQuery: Record<string, Types.ObjectId> = {};
-  if (shopId) {
-    matchQuery._id = _shopId;
-  } else {
-    matchQuery.vendor = _userId;
+  if (!shopId) {
+     throw new AppError(StatusCodes.NOT_FOUND, "Shop not found");
   }
 
   // Aggregate shop
   const isShopExist = await Shop.aggregate([
     {
-      $match: matchQuery,
+      $match: {_id: _shopId },
     },
 
     {
@@ -156,7 +150,7 @@ const getShopDetailsService = async (userId: string, shopId?: string) => {
     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
   }
 
-  return isShopExist;
+  return isShopExist[0];
 };
 
 // UPDATE SHOP

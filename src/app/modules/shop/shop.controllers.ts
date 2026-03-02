@@ -28,9 +28,8 @@ const createShop = CatchAsync(async (req: Request, res: Response, next: NextFunc
 
 
 const  getShopDetails = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user as JwtPayload;
     const shopId = req.query.shopId as  string;
-    const result = await shopServices.getShopDetailsService(user.userId, shopId);
+    const result = await shopServices.getShopDetailsService(shopId);
 
     SendResponse(res, {
         success: true,
