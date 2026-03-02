@@ -10,6 +10,7 @@ import mongoose, { Types } from 'mongoose';
 import { OutletModel } from '../outlet/outlet.model';
 import { JwtPayload } from 'jsonwebtoken';
 import { asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
+import { redisClient } from '../../config/redis.config';
 
 // Custom interface
 interface ShopCreatePayload {
@@ -125,22 +126,35 @@ const createShopService = async (
 // GET SHOP DETAILS
 const getShopDetailsService = async (shopId?: string, my_shop?: string) => {
 
- 
-  const shopQuery: Record<string, any> = {};
+  const shopDynamicId = my_shop ? my_shop : shopId;
 
+  // CREATED DYNAMIC SHOP CACHE KEY
+  const shopCacheKey = `shop:${shopDynamicId}`
+
+  // GET DATA FROM REDIS AND RETURN 
+  if (shopCacheKey) {
+    const shopData = await redisClient.get(shopCacheKey);
+    if (shopData) {
+      return JSON.parse(shopData);
+    }
+  }
+  
+  
+  const shopQuery: Record<string, any> = {};
+  
   if (my_shop) {
     shopQuery.vendor = new Types.ObjectId(my_shop);;
   }else if(shopId) {
     shopQuery._id =  new Types.ObjectId(shopId);
   }
   
-
+  
   // Aggregate shop
   const isShopExist = await Shop.aggregate([
     {
       $match: shopQuery,
     },
-
+    
     {
       $lookup: {
         from: 'outlets',
@@ -154,7 +168,10 @@ const getShopDetailsService = async (shopId?: string, my_shop?: string) => {
   if (!isShopExist || isShopExist.length === 0) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
   }
-
+  
+  // STORE DATA IN REDIS
+  redisClient.set(shopCacheKey, JSON.stringify(isShopExist[0]), { EX: 10 * 60 }); // Store for 10 min
+  
   return isShopExist[0];
 };
 
@@ -251,6 +268,11 @@ const updateShopService = async (
     // send notification to vendor
   });
 
+ 
+  // REMOVE ALL CACHE KEY WHEN UPDATE
+  await redisClient.del(`shop:${userId}`);
+  await redisClient.del(`shop:${shopId}`);
+  
   return updatedShop;
 };
 

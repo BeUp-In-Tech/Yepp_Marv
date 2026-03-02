@@ -34,7 +34,7 @@ const  getShopDetails = CatchAsync(async (req: Request, res: Response, next: Nex
 
     SendResponse(res, {
         success: true,
-        statusCode: StatusCodes.CREATED,
+        statusCode: StatusCodes.OK,
         message: "Shop details fetched!",
         data: result
     })
