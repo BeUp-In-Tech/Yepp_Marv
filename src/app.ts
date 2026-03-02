@@ -12,10 +12,13 @@ import passport from 'passport';
 import './app/config/passport.config'
 import http from 'http'
 import { initSocket } from './app/socket/socket';
+import { paymentControllers } from './app/modules/payment/payment.controllers';
 
 
 const app = express();
 const server = http.createServer(app);
+
+app.post('/webhook', express.raw({ type: 'application/json'}), paymentControllers.stripeWebhook )
 
 // Init socket connection
 initSocket(server);
