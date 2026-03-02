@@ -3,7 +3,6 @@ import { JwtPayload } from 'jsonwebtoken';
 import { Role } from '../user/user.interface';
 import AppError from '../../errorHelpers/AppError';
 import { StatusCodes } from 'http-status-codes';
-import { ServiceModel } from '../service/service.model';
 import { Plan } from '../plan/plan.model';
 import { voucherServices } from '../voucher/voucher.services';
 import { stripe } from '../../config/stripe.config';
@@ -19,18 +18,19 @@ import Stripe from 'stripe';
 import { Request } from 'express';
 import { paymentSuccessHandler } from '../../utils/paymentHelper/paymentSuccess.helper';
 import { paymentFailedHandler } from '../../utils/paymentHelper/paymentFailed.helper';
+import { DealModel } from '../service/deal.model';
 
 // HELPER INTERFACE
 
 // STRIPE PAYMENT -> PROMOTE SERVICE
 const stripePay = async (
   user: JwtPayload,
-  _serviceId: string,
+  _dealId: string,
   _planId: string,
   voucher: string
 ) => {
   const userId = new Types.ObjectId(user.userId);
-  const serviceId = new Types.ObjectId(_serviceId);
+  const dealId = new Types.ObjectId(_dealId);
   const planId = new Types.ObjectId(_planId);
 
   /* ---------- VALIDATION (OUTSIDE TRANSACTION) ---------- */
@@ -38,17 +38,17 @@ const stripePay = async (
     throw new AppError(StatusCodes.UNAUTHORIZED, "You can't promote service");
   }
 
-  const [service, plan, shop] = await Promise.all([
-    ServiceModel.findById(serviceId),
+  const [deal, plan, shop] = await Promise.all([
+    DealModel.findById(dealId),
     Plan.findById(planId),
     Shop.findOne({ vendor: user.userId }),
   ]);
 
-  if (!service) throw new AppError(StatusCodes.NOT_FOUND, 'Service not found');
+  if (!deal) throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
   if (!plan) throw new AppError(StatusCodes.NOT_FOUND, 'Plan not found');
   if (!shop) throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
 
-  if (!service.shop.equals(shop._id)) {
+  if (!deal.shop.equals(shop._id)) {
     throw new AppError(StatusCodes.FORBIDDEN, 'Invalid service');
   }
 
@@ -56,7 +56,7 @@ const stripePay = async (
   const alreadyPromoted = await Promotion.findOne({
     user: userId,
     shop: shop._id,
-    service: serviceId,
+    deal: dealId,
     status: {
       $in: [PromotionStatus.ACTIVE, PromotionStatus.PENDING],
     },
@@ -107,7 +107,7 @@ const stripePay = async (
         {
           user: userId,
           shop: shop._id,
-          service: service._id,
+          deal: deal._id,
           payment: payment_id,
           validityDays: plan.durationDays,
           price: final_price,
@@ -122,7 +122,7 @@ const stripePay = async (
         {
           _id: payment_id,
           user: userId,
-          service: service._id,
+          deal: deal._id,
           promotion: promotion[0]._id,
           transaction_id: generateTransactionId(),
           amount: final_price,
@@ -152,8 +152,8 @@ const stripePay = async (
         price_data: {
           currency: plan.currency.toLowerCase(),
           product_data: {
-            name: service.title,
-            images: service.images,
+            name: deal.title,
+            images: deal.images,
           },
           unit_amount: totalAmountCents,
         },
@@ -165,7 +165,7 @@ const stripePay = async (
     metadata: {
       payment: payment[0]._id.toString(),
       promotion: promotion[0]._id.toString(),
-      service: serviceId.toString(),
+      deal: dealId.toString(),
       voucher_id: voucher_payload.voucher_id?.toString() ?? '',
       voucher_code: voucher_payload.voucher ?? '',
     },

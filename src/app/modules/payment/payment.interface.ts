@@ -16,7 +16,7 @@ export enum PaymentStatus {
 export interface IPayment {
     _id?: Types.ObjectId;
     user: Types.ObjectId;
-    service: Types.ObjectId;
+    deal: Types.ObjectId;
     promotion?: Types.ObjectId;
     transaction_id: string;
     amount: number;

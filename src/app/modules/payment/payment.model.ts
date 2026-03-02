@@ -3,7 +3,7 @@ import { IPayment, PaymentProvider, PaymentStatus } from "./payment.interface";
 
 const PaymentSchema = new Schema<IPayment>(
   {
-    service: {
+    deal: {
       type: Schema.Types.ObjectId,
       ref: 'Service',
       required: true
