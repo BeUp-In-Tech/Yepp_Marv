@@ -16,6 +16,12 @@ const updateOutletService = async (outletId: string, userId: string, payload: Pa
         throw new AppError(StatusCodes.NOT_FOUND , "Outlet or shop not found");
     }
 
+
+    if (userId !== shop._id.toString()) {
+        throw new AppError(StatusCodes.FORBIDDEN, "Access denied, you can't update")
+    }
+
+
     if (payload.coordinates) {
         payload.location = {
             type: "Point",

@@ -6,6 +6,7 @@ export interface IOutlet {
   _id?: Types.ObjectId;
   shop: Types.ObjectId;
 
+  outlet_name: string;
   address: string;
   zip_code: string;
 

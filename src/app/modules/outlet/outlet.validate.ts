@@ -2,6 +2,10 @@ import z from "zod";
 
 
 export const outletUpdateZodSchema = z.object({ 
+      outlet_name: z.string({
+        message: "Outlet name must be string",
+      }).optional(),
+
       address: z.string({
         message: "Address must be string",
       }).optional(),
