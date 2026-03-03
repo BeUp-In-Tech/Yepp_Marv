@@ -16,6 +16,7 @@ import { redisClient } from '../../config/redis.config';
 interface ShopCreatePayload {
   shop: IShop;
   outlet: {
+    outlet_name: string;
     address: string;
     zip_code: string;
     coordinates: [number, number];
@@ -90,7 +91,7 @@ const createShopService = async (
     const outlets = (payload.outlet || []).map((o) => ({
       shop: shopDoc._id,
       vendor: vendorId,
-      // outlet_name: o.outlet_name,
+      outlet_name: o.outlet_name,
       address: o.address.trim(),
       zip_code: o.zip_code.trim(),
       location: {
