@@ -6,7 +6,6 @@ const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ObjectId');
 // CREATE ZOD SCHEMA
 export const CreateDealZodSchema = z
   .object({
-    shop: objectId,
     category: objectId,
 
     title: z.string().min(2).max(120).trim(),
@@ -17,6 +16,7 @@ export const CreateDealZodSchema = z
     description: z.string("Description must be string").min(10).max(5000).trim(),
  
     coupon: z.string("Coupon must be string"),
+    available_in_outlet: z.array(z.string()),
 
     total_views: z.number().int().nonnegative().optional(),
     total_impression: z.number().int().nonnegative().optional(),

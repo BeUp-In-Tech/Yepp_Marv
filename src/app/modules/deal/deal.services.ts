@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import mongoose, { Types } from 'mongoose';
+import mongoose, { Types, PipelineStage } from 'mongoose';
 import { JwtPayload } from 'jsonwebtoken';
 import { Shop } from '../shop/shop.model';
 import { Role } from '../user/user.interface';
@@ -11,6 +11,8 @@ import { IDeal } from './deal.interface';
 import { DealModel } from './deal.model';
 import { Category } from '../categories/categories.model';
 import { QueryBuilder } from '../../utils/QueryBuilder';
+import { OutletModel } from '../outlet/outlet.model';
+import { asynMultipleImageDelete } from '../../utils/singleImageDeleteAsync';
 
 // 1. CREATE SERVICE
 const createDealsService = async (params: {
@@ -18,14 +20,36 @@ const createDealsService = async (params: {
   payload: IDeal; // used for auto QR URL
 }) => {
   const { user, payload } = params;
-
-  // 1) CONVERT IDS
-  const shopId = new Types.ObjectId(payload.shop);
   const categoryId = new Types.ObjectId(payload.category);
 
-  // IS SHOP EXIST
+  // CHECK USER IS VENDOR
+  if (user.role !== Role.VENDOR) {
+    if (payload.images) {
+      await asynMultipleImageDelete(payload.images);
+    }
+    throw new AppError(StatusCodes.FORBIDDEN, 'Only vendor can create deals');
+  }
+
+  // IS SHOP EXIST BY USER ID
+  const isShopExist = await Shop.findOne({ vendor: user.userId });
+  if (!isShopExist) {
+    if (payload.images) {
+      await asynMultipleImageDelete(payload.images);
+    }
+
+    throw new AppError(
+      StatusCodes.NOT_FOUND,
+      "Shop not found or you don't have permission."
+    );
+  }
+
+  // IS CATEGORY EXIST
   const isCategoryExist = await Category.findById(categoryId).lean();
   if (!isCategoryExist) {
+    if (payload.images) {
+      await asynMultipleImageDelete(payload.images);
+    }
+
     throw new AppError(
       StatusCodes.BAD_REQUEST,
       'Invalid category, category not found'
@@ -34,22 +58,7 @@ const createDealsService = async (params: {
 
   // 2) VENDOR MUST OWN THE SHOP
   if (![Role.ADMIN, Role.VENDOR].includes(user.role)) {
-    throw new Error('Forbidden');
-  }
-
-  const shopQuery: Record<string, any> = { _id: shopId };
-
-  if (user.role === Role.VENDOR) {
-    shopQuery.vendor = new Types.ObjectId(user.userId);
-  }
-
-  // IS SHOP EXIST
-  const shopExists = await Shop.exists(shopQuery).lean();
-  if (!shopExists) {
-    throw new AppError(
-      StatusCodes.NOT_FOUND,
-      "Shop not found or you don't have permission."
-    );
+    throw new AppError(StatusCodes.FORBIDDEN, 'Forbidden');
   }
 
   // NORMALIZE INPUTS O(n) BOUNDED
@@ -59,9 +68,13 @@ const createDealsService = async (params: {
 
   const images = (payload.images || []).map((u) => u.trim()).filter(Boolean);
 
+  const available_in_outlet = payload.available_in_outlet?.map(
+    (outletId) => new Types.ObjectId(outletId)
+  );
+
   // 5) CREATE
   const finalPayload = {
-    shop: shopId,
+    shop: isShopExist._id,
     user: new mongoose.Types.ObjectId(user.userId),
     category: isCategoryExist._id,
 
@@ -72,6 +85,7 @@ const createDealsService = async (params: {
     highlight,
     description: payload.description,
     images,
+    available_in_outlet,
     coupon: payload.coupon,
   };
   const doc = await DealModel.create(finalPayload);
@@ -320,12 +334,116 @@ const getMyDealsService = async (
 
 // 5. GET ALL SERVICES
 const getAllDealsService = async (
-  lng: number,
-  lat: number,
+  userLng: number,
+  userLat: number,
   query: Record<string, string>
 ) => {
-  const deals = await DealModel.find();
-  return { lng, lat, query, deals };
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  const pipeline: PipelineStage[] = [
+    // STEP 1: GEO SEARCH (MUST BE FIRST STAGE)
+    {
+      $geoNear: {
+        near: {
+          type: 'Point',
+          coordinates: [userLng, userLat],
+        },
+        distanceField: 'distance',
+        spherical: true,
+        query: { isActive: true },
+        // maxDistance: 10000, // optional 10km radius
+      },
+    },
+
+    // STEP 2:  LOOKUP DEALS AVAILABLE IN OUTLET
+    {
+      $lookup: {
+        from: 'deals',
+        localField: '_id',
+        foreignField: 'available_in_outlet',
+        as: 'deals',
+      },
+    },
+
+    { $unwind: '$deals' },
+
+    // STEP 3: FILTER ONLY ACTIVE PROMOTED DEALS
+    {
+      $match: {
+        'deals.isPromoted': true,
+        'deals.promotedUntil': { $gt: new Date() },
+      },
+    },
+
+    // STEP 4: ATTACH DISTANCE + NEAREST_OUTLET ID
+    {
+      $addFields: {
+        'deals.distance': '$distance',
+        'deals.nearest_outlet': '$_id',
+      },
+    },
+
+    { $replaceRoot: { newRoot: '$deals' } },
+
+    // STEP 5: SORT NEAREST FIRST
+    { $sort: { distance: 1 } },
+
+    // STEP 6: REMOVE DUPLICATES (IF DEAL AVAILABLE IN MULTIPLE OUTLETS)
+    {
+      $group: {
+        _id: '$_id',
+        doc: { $first: '$$ROOT' }, // nearest one preserved
+      },
+    },
+
+    { $replaceRoot: { newRoot: '$doc' } },
+
+    // STEP 7: SORT AGAIN AFTER GROUPING
+    { $sort: { distance: 1 } },
+
+    // STEP 8: PAGINATION
+    { $skip: skip },
+    { $limit: limit },
+
+    // STEP 9: LOOKUP MINIMAL SHOP INFO
+    {
+      $lookup: {
+        from: 'shops',
+        localField: 'shop',
+        foreignField: '_id',
+        as: 'shop',
+        pipeline: [
+          {
+            $project: {
+              business_name: 1,
+              business_logo: 1,
+            },
+          },
+        ],
+      },
+    },
+
+    { $unwind: '$shop' },
+
+    // STEP 10: FINAL PROJECTION
+    {
+      $project: {
+        title: 1,
+        reguler_price: 1,
+        discount: 1,
+        images: { $slice: ['$images', 1] },
+        distance: 1,
+        nearest_outlet: 1,
+        shop: 1,
+        isPromoted: 1,
+        promotedUntil: 1,
+      },
+    },
+  ];
+
+  return OutletModel.aggregate(pipeline);
 };
 
 export const servicesLayer = {

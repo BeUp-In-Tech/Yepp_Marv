@@ -18,5 +18,6 @@ export interface IDeal {
     coupon: string;
     total_views?: number;
     total_impression?: number;
+    available_in_outlet?: [Types.ObjectId];
     createdAt?: Date;
 }   

@@ -22,7 +22,7 @@ router.post(
 );
 
 // GET ALL DEALS
-router.get('/deals', dealsControllers.getAllDeals);
+router.get('/deals/:lng/:lat', dealsControllers.getAllDeals);
 
 // GET MY SERVICE
 router.get('/my_deals', checkAuth(Role.VENDOR), dealsControllers.getMyDeals);
