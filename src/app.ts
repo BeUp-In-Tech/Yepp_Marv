@@ -34,7 +34,12 @@ app.use(expressSession({
 app.use(passport.initialize()); // Initilazed Passport
 app.use(passport.session()); // Create a session
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: env.FRONTEND_URL,
+  credentials: true,
+  preflightContinue: true,
+  methods: ["GET", "POST", "PATCH", "DELETE"]
+}));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(safeSanitizeMiddleware);
