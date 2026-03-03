@@ -125,6 +125,15 @@ const createDealsService = async (params: {
 const getSingleDealsService = async (_dealId: string) => {
   const dealId = new mongoose.Types.ObjectId(_dealId);
 
+  const addView = await DealModel.findByIdAndUpdate(
+  { _id: dealId },
+  { $inc: { total_views: 1 } }
+);
+
+if (!addView) {
+  throw new AppError (StatusCodes.NOT_FOUND, "Deal not found");
+}
+
   const deal = await DealModel.aggregate([
     {
       $match: { _id: dealId }
@@ -190,7 +199,7 @@ const getSingleDealsService = async (_dealId: string) => {
         "available_outlet.updatedAt": 0,
         "available_outlet.__v": 0,
       }
-    }, 
+    }
 
 ])
   
@@ -200,6 +209,7 @@ const final_deal = deal[0];
 if (final_deal.length === 0) {
   throw new AppError(StatusCodes.NOT_FOUND, "No deals found");
 }
+
 
   return final_deal;
 };
