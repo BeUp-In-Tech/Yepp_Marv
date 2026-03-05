@@ -8,7 +8,7 @@ export const zodErrorHandler = (err: any): TGenericsErrorResponse => {
   const errorSources: TErrorSources[] = [];
   err.issues.forEach((issue: any) => {
     errorSources.push({
-      path: issue.path[issue.path.at(-1)], // catch last field of error
+      path: issue.path.length ? issue.path.join(".") : "",
       message: issue.message,
     });
   });
@@ -19,3 +19,6 @@ export const zodErrorHandler = (err: any): TGenericsErrorResponse => {
     errorSources,
   };
 };
+
+
+// path: issue.path.length ? issue.path.join(".") : "",

@@ -10,10 +10,21 @@ import env from './app/config/env';
 import expressSession from 'express-session';
 import passport from 'passport';
 import './app/config/passport.config'
+import http from 'http'
+import { initSocket } from './app/socket/socket';
+import { paymentControllers } from './app/modules/payment/payment.controllers';
 
 
 const app = express();
+const server = http.createServer(app);
 
+app.post('/webhook', express.raw({ type: 'application/json'}), paymentControllers.stripeWebhook )
+
+// Init socket connection
+initSocket(server);
+
+
+app.set('trust proxy', 1);
 app.use(expressSession({
   secret: env.EXPRESS_SESSION_SECRET,
   resave: false,
@@ -23,7 +34,12 @@ app.use(expressSession({
 app.use(passport.initialize()); // Initilazed Passport
 app.use(passport.session()); // Create a session
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: env.FRONTEND_URL,
+  credentials: true,
+  preflightContinue: true,
+  methods: ["GET", "POST", "PATCH", "DELETE"]
+}));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(safeSanitizeMiddleware);
@@ -50,4 +66,4 @@ app.use(globalErrorHandler);
 // NO ROUTE MATCH
 app.use(NotFound);
 
-export default app;
+export default server;
