@@ -16,7 +16,7 @@ export interface INotification {
     title: string;
     body: string;
     type: NotificationType;
-    isRead: boolean;
+    isRead?: boolean;
     entityId: string;
     webUrl: string;
     deepLink: string;
