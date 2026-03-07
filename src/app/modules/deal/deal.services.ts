@@ -439,7 +439,6 @@ const getNearestDealsService = async (
   userLat: number,
   query: Record<string, string>
 ) => {
-
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
@@ -560,8 +559,7 @@ const getNearestDealsService = async (
     totalPromotedDocPromise,
   ]);
 
-
-   // EXTRACT IDS
+  // EXTRACT IDS
   const ids = nearestDeals.map((doc) => doc._id.toString());
   const uniqueIds = [...new Set(ids)];
 
@@ -730,22 +728,22 @@ const getAllDealsService = async (
 };
 
 // 8. GET USERS SAVED DEALS BY IDS
-const getDealsByIdsService = async (ids: string[], query: Record<string, string>) => {
+const getDealsByIdsService = async (
+  ids: string[],
+  query: Record<string, string>
+) => {
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  const objectIds = ids.map(id => new Types.ObjectId(id));
+  const objectIds = ids.map((id) => new Types.ObjectId(id));
 
-const deals = await DealModel.find({ _id: {$in: objectIds }}).limit(limit).skip(skip);
- 
-  
-
- 
+  const deals = await DealModel.find({ _id: { $in: objectIds } })
+    .limit(limit)
+    .skip(skip);
 
   return deals;
-  
-}
+};
 
 export const dealsServices = {
   createDealsService,
@@ -755,5 +753,5 @@ export const dealsServices = {
   getMyDealsService,
   getNearestDealsService,
   getAllDealsService,
-  getDealsByIdsService
+  getDealsByIdsService,
 };
