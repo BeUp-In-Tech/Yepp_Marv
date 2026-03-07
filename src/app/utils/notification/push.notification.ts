@@ -3,10 +3,10 @@ import mongoose from 'mongoose';
 import User from '../../modules/user/user.model';
 import { IUser } from '../../modules/user/user.interface';
 import { NotificationModel } from '../../modules/notification/notification.model';
-import { NotifyInputSchema } from '../../modules/notification/notification.validate';
 import AppError from '../../errorHelpers/AppError';
 import { StatusCodes } from 'http-status-codes';
 import admin from '../../config/firebase.config';
+import { INotification } from '../../modules/notification/notification.interface';
 
 
 
@@ -56,25 +56,25 @@ function getActiveTokens(
  * - sends FCM (optional)
  * - cleans invalid FCM tokens
  */
-export async function notifyUser(input: unknown) {
-  const parsed = NotifyInputSchema.parse(input);
-  const userId = new mongoose.Types.ObjectId(parsed.user);
+export async function notifyUser(input: INotification) {
+  
+  const userId = new mongoose.Types.ObjectId(input.user);
 
   // Security: never send secrets in push data (you control input)
   // FCM "data" must be string values
-  const safeData: Record<string, string> = { ...parsed.data };
+  const safeData: Record<string, string> = { ...input.data };
 
   // 1) Save notification in DB first
   const notificationDoc = await NotificationModel.create({
     user: userId,
-    title: parsed.title,
-    body: parsed.body,
+    title: input.title,
+    body: input.body,
 
-    type: parsed.type,
-    entityId: parsed.entityId,
+    type: input.type,
+    entityId: input.entityId,
 
-    webUrl: parsed.webUrl,
-    deepLink: parsed.deepLink,
+    webUrl: input.webUrl,
+    deepLink: input.deepLink,
 
     isRead: false,
     data: safeData,
@@ -94,15 +94,15 @@ export async function notifyUser(input: unknown) {
   const message = {
     tokens,
     notification: {
-      title: parsed.title,
-      body: parsed.body || '',
+      title: input.title,
+      body: input.body || '',
     },
     data: {
       notificationId,
-      type: parsed.type,
-      entityId: parsed.entityId || '',
-      webUrl: parsed.webUrl || '',
-      deepLink: parsed.deepLink || '',
+      type: input.type,
+      entityId: input.entityId || '',
+      webUrl: input.webUrl || '',
+      deepLink: input.deepLink || '',
       ...safeData,
     },
   };
