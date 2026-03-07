@@ -1,8 +1,8 @@
- /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { StatusCodes } from 'http-status-codes';
 import AppError from '../../errorHelpers/AppError';
 import User from '../user/user.model';
-import { IShop } from './shop.interface';
+import { IShop, ShopApproval } from './shop.interface';
 import { Shop } from './shop.model';
 import { deleteImageFromCLoudinary } from '../../config/cloudinary.config';
 import { Role } from '../user/user.interface';
@@ -11,6 +11,10 @@ import { OutletModel } from '../outlet/outlet.model';
 import { JwtPayload } from 'jsonwebtoken';
 import { asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 import { redisClient } from '../../config/redis.config';
+import { notifyUser } from '../../utils/notification/push.notification';
+import { NotificationType } from '../notification/notification.interface';
+import env from '../../config/env';
+import { sendEmail } from '../../utils/sendMail';
 
 // Custom interface
 interface ShopCreatePayload {
@@ -33,22 +37,20 @@ const createShopService = async (
   const isUser = await User.findById(user.userId);
   if (!isUser) {
     if (payload.shop.business_logo) {
-       await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
+      await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
     }
-    throw new AppError (StatusCodes.NOT_FOUND, "User not found");
+    throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
-  
 
   // CHECK USER VERIFIED
   if (!isUser.isVerified) {
     if (payload.shop.business_logo) {
-       await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
+      await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
     }
 
     // Throw Error
     throw new AppError(StatusCodes.BAD_REQUEST, 'Verify your profile');
   }
-
 
   const vendorId = new Types.ObjectId(user.userId);
 
@@ -58,7 +60,7 @@ const createShopService = async (
     .lean();
   if (alreadyHasShop) {
     if (payload.shop.business_logo) {
-       await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
+      await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
     }
 
     // Thorw Error
@@ -126,36 +128,33 @@ const createShopService = async (
 
 // GET SHOP DETAILS
 const getShopDetailsService = async (shopId?: string, my_shop?: string) => {
-
   const shopDynamicId = my_shop ? my_shop : shopId;
 
   // CREATED DYNAMIC SHOP CACHE KEY
-  const shopCacheKey = `shop:${shopDynamicId}`
+  const shopCacheKey = `shop:${shopDynamicId}`;
 
-  // GET DATA FROM REDIS AND RETURN 
+  // GET DATA FROM REDIS AND RETURN
   if (shopCacheKey) {
     const shopData = await redisClient.get(shopCacheKey);
     if (shopData) {
       return JSON.parse(shopData);
     }
   }
-  
-  
+
   const shopQuery: Record<string, any> = {};
-  
+
   if (my_shop) {
-    shopQuery.vendor = new Types.ObjectId(my_shop);;
-  }else if(shopId) {
-    shopQuery._id =  new Types.ObjectId(shopId);
+    shopQuery.vendor = new Types.ObjectId(my_shop);
+  } else if (shopId) {
+    shopQuery._id = new Types.ObjectId(shopId);
   }
-  
-  
+
   // Aggregate shop
   const isShopExist = await Shop.aggregate([
     {
       $match: shopQuery,
     },
-    
+
     {
       $lookup: {
         from: 'outlets',
@@ -169,10 +168,12 @@ const getShopDetailsService = async (shopId?: string, my_shop?: string) => {
   if (!isShopExist || isShopExist.length === 0) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
   }
-  
+
   // STORE DATA IN REDIS
-  redisClient.set(shopCacheKey, JSON.stringify(isShopExist[0]), { EX: 10 * 60 }); // Store for 10 min
-  
+  redisClient.set(shopCacheKey, JSON.stringify(isShopExist[0]), {
+    EX: 10 * 60,
+  }); // Store for 10 min
+
   return isShopExist[0];
 };
 
@@ -183,7 +184,7 @@ const updateShopService = async (
   payload: Partial<IShop>
 ) => {
   // 1. ensure user exists
-  const user = await User.findById(userId).select('_id role');
+  const user = await User.findById(userId).select('_id email role');
   if (!user) {
     throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
@@ -266,14 +267,91 @@ const updateShopService = async (
     // Delete old business logo
     deleteImageFromCLoudinary(shop.business_logo);
 
-    // send notification to vendor
+
+    // IF SHOP APPROVAL 'APPROVED'
+    if (
+      payload.shop_approval &&
+      payload.shop_approval === ShopApproval.APPROVED
+    ) {
+      // SEND NOTIFICATION AND EMAIL
+      notifyUser({
+        user: new Types.ObjectId(user._id),
+        title: 'Congratulations! Your shop approved by Yepp',
+        body: 'Your shop is live now. You can promote your service and deals',
+        type: NotificationType.SHOP,
+        entityId: shopId,
+        webUrl: `${env.FRONTEND_URL}/create-deal`,
+        deepLink: `${env.DEEP_LINK}/create-deal`,
+      });
+
+      // SEND EMAIL
+      const shopOwner = await User.findOne({ _id: updatedShop.vendor });
+      if (!shopOwner) {
+        return 0;
+      }
+
+      const now = new Date().toLocaleString();
+
+      sendEmail({
+        to: shopOwner.email,
+        subject: 'Congratulations! Your shop approved by Yepp',
+        templateName: 'shop_approval',
+        templateData: {
+          shop_owner_name: shopOwner.user_name,
+          shop_name: updatedShop.business_name,
+          entityId: updatedShop._id.toString(),
+          approval_date: now,
+          support_mail: env.ADMIN_MAIL,
+          redirect_url: `${env.FRONTEND_URL}/create-deal`,
+        },
+      });
+    }
+
+
+    // IF SHOP APPROVAL 'REJECTED'
+    if (
+      payload.shop_approval &&
+      payload.shop_approval === ShopApproval.REJECTED
+    ) {
+      // SEND NOTIFICATION AND EMAIL
+      notifyUser({
+        user: new Types.ObjectId(user._id),
+        title: 'Your shop created request rejected by Yepp',
+        body: 'Pleae kindly submit valid data and information about your business',
+        type: NotificationType.SHOP,
+        entityId: shopId,
+        webUrl: `${env.FRONTEND_URL}`,
+        deepLink: `${env.DEEP_LINK}`,
+      });
+
+      // SEND EMAIL
+      const shopOwner = await User.findOne({ _id: updatedShop.vendor });
+      if (!shopOwner) {
+        return 0;
+      }
+
+      const now = new Date().toLocaleString();
+
+      sendEmail({
+        to: shopOwner.email,
+        subject: 'Your shop created request rejected by Yepp',
+        templateName: 'shop_rejection',
+        templateData: {
+          shop_owner_name: shopOwner.user_name,
+          shop_name: updatedShop.business_name,
+          entityId: updatedShop._id.toString(),
+          reviewed_date: now,
+          support_mail: env.ADMIN_MAIL,
+          redirect_url: `${env.FRONTEND_URL}/create-shop`,
+        },
+      });
+    }
   });
 
- 
   // REMOVE ALL CACHE KEY WHEN UPDATE
   await redisClient.del(`shop:${userId}`);
   await redisClient.del(`shop:${shopId}`);
-  
+
   return updatedShop;
 };
 
