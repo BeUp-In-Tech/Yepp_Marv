@@ -4,8 +4,7 @@ import { ShopApproval } from './shop.interface';
 const businessPhoneSchema = z.object({
   country_code: z
     .string()
-    .min(1, 'Country code is required')
-    .regex(/^\+?[1-9]\d{1,14}$/, 'Invalid country code format'), // Regex for valid country code (international)
+    .min(1, 'Country code is required'), // Regex for valid country code (international)
 
   phone_number: z
     .string()

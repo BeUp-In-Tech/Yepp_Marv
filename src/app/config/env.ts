@@ -15,6 +15,7 @@ interface EnvInterfaces {
 
   BCRYPT_SALT_ROUND: string;
   FRONTEND_URL: string;
+  DEEP_LINK: string;
   BACKEND_URL: string;
 
   CLOUDINARY_SECRET: string;
@@ -72,6 +73,7 @@ const loadEnvVarbles = (): EnvInterfaces => {
 
     'BCRYPT_SALT_ROUND',
     'FRONTEND_URL',
+    'DEEP_LINK',
     'BACKEND_URL',
 
     'CLOUDINARY_NAME',
@@ -136,6 +138,7 @@ const loadEnvVarbles = (): EnvInterfaces => {
     OTP_JWT_ACCESS_EXPIRATION: process.env.OTP_JWT_ACCESS_EXPIRATION as string,
 
     FRONTEND_URL: process.env.FRONTEND_URL as string,
+    DEEP_LINK: process.env.DEEP_LINK as string,
     BACKEND_URL: process.env.BACKEND_URL as string,
 
     CLOUDINARY_SECRET: process.env.CLOUDINARY_SECRET as string,

@@ -42,7 +42,6 @@ const  getShopDetails = CatchAsync(async (req: Request, res: Response, next: Nex
 
 
 const updateShop = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
-       
     const user = req.user as JwtPayload;
     const  shopId  = req.params.shopId as string;
      const payload = {

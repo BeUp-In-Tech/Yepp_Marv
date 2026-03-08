@@ -14,6 +14,7 @@ import { QueryBuilder } from '../../utils/QueryBuilder';
 import { OutletModel } from '../outlet/outlet.model';
 import { asynMultipleImageDelete } from '../../utils/singleImageDeleteAsync';
 import { ShopApproval } from '../shop/shop.interface';
+import { redisClient } from '../../config/redis.config';
 
 // 1. CREATE SERVICE
 const createDealsService = async (params: {
@@ -439,7 +440,6 @@ const getNearestDealsService = async (
   userLat: number,
   query: Record<string, string>
 ) => {
-
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
@@ -560,8 +560,7 @@ const getNearestDealsService = async (
     totalPromotedDocPromise,
   ]);
 
-
-   // EXTRACT IDS
+  // EXTRACT IDS
   const ids = nearestDeals.map((doc) => doc._id.toString());
   const uniqueIds = [...new Set(ids)];
 
@@ -729,6 +728,40 @@ const getAllDealsService = async (
   return { meta, deals };
 };
 
+// 8. GET USERS SAVED DEALS BY IDS
+const getDealsByIdsService = async (
+  ids: string[],
+  query: Record<string, string>
+) => {
+
+  
+
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+
+  // SEND CACHE REPONSE
+  const cacheKey = `saved:${ids.join(",")}-pages:${page}-limit:${limit}`;
+  const getSaveddealsCache = await redisClient.get(cacheKey);
+  if (getSaveddealsCache) {   
+    return JSON.parse(getSaveddealsCache);
+  }
+  
+
+  const objectIds = ids.map((id) => new Types.ObjectId(id));
+
+  const deals = await DealModel.find({ _id: { $in: objectIds } })
+    .limit(limit)
+    .skip(skip);
+
+
+  // SAVED RESPONSE IN THE REDIS CACHE
+  await redisClient.set(cacheKey, JSON.stringify(deals), {EX: 1200 });
+
+  return deals;
+};
+
 export const dealsServices = {
   createDealsService,
   deleteDealsService,
@@ -737,4 +770,5 @@ export const dealsServices = {
   getMyDealsService,
   getNearestDealsService,
   getAllDealsService,
+  getDealsByIdsService,
 };
