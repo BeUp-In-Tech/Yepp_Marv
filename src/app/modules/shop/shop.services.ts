@@ -356,7 +356,6 @@ const updateShopService = async (
   return updatedShop;
 };
 
-
 // SHOP ANALYTICS
 const getDealAnalyticsService = async (user: JwtPayload) => {
   const userObjectId = new mongoose.Types.ObjectId(user.userId);

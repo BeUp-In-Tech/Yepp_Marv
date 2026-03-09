@@ -519,6 +519,119 @@ const getMyDealsService = async (
   };
 };
 
+// 6. GET DEALS BY CATEGORY
+const getDealsByCategoryService = async (
+  lng: number,
+  lat: number,
+  categoryId: string,
+  query: Record<string, string>
+) => {
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 20;
+  const skip = (page - 1) * limit;
+
+  if (!lng || !lat || !categoryId) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      'lng, lat, and categoryId are required'
+    );
+  }
+
+  // Aggregation pipeline
+  const deals = await OutletModel.aggregate([
+    //  GeoNear stage
+    {
+      $geoNear: {
+        near: { type: 'Point', coordinates: [lng, lat] },
+        distanceField: 'distance',
+        spherical: true,
+        key: 'location',
+        query: { isActive: true },
+      },
+    },
+    //  Join deals
+    {
+      $lookup: {
+        from: 'deals',
+        localField: '_id',
+        foreignField: 'available_in_outlet',
+        as: 'deal',
+      },
+    },
+    { $unwind: '$deal' },  
+    // Filter by category
+
+    {
+      $match: {
+        'deal.category': new mongoose.Types.ObjectId(categoryId),
+      },
+    },
+    // Only promoted deals
+    {
+      $match: {
+        'deal.isPromoted': true,
+        'deal.promotedUntil': { $gte: new Date() },
+      },
+    },
+    // Join shop info
+    {
+      $lookup: {
+        from: 'shops',
+        localField: 'shop',
+        foreignField: '_id',
+        as: 'shop',
+      },
+    },
+    { $unwind: '$shop' },
+    // Sort by distance
+    { $sort: { distance: 1 } },
+    // Project needed fields
+    {
+      $project: {
+        distance: 1,
+        'shop.business_name': 1,
+        'shop.business_logo': 1,
+        'deal._id': 1,
+        'deal.title': 1,
+        'deal.reguler_price': 1,
+        'deal.discount': 1,
+        'deal.isPromoted': 1,
+        'deal.promotedUntil': 1,
+        'deal.images': 1,
+      },
+    },
+    // Pagination
+    { $skip: skip },
+    { $limit: limit },
+  ]);
+
+  // Total promoted deals count
+  const total = await DealModel.countDocuments({
+    category: new mongoose.Types.ObjectId(categoryId),
+    isPromoted: true,
+    promotedUntil: { $gte: new Date() },
+  });
+
+  // Increment impressions asynchronously
+  const ids = deals.map((doc) => doc.deal._id.toString());
+  setImmediate(() => {
+    DealModel.updateMany(
+      { _id: { $in: ids } },
+      { $inc: { total_impression: 1 } }
+    );
+  });
+
+  // Response meta
+  const meta = {
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+  };
+
+  return { meta, deals };
+};
+
 // 6. GET NEAREST DEALS
 const getNearestDealsService = async (
   userLng: number,
@@ -865,19 +978,22 @@ const topViewedDealsService = async (
     .paginate()
     .build();
 
+  const totalVendorsDealPromise = DealModel.countDocuments({
+    shop: getShop._id,
+  });
+  const metaPromise = queryBuilder.getMeta();
 
-    const totalVendorsDealPromise = DealModel.countDocuments({ shop: getShop._id });
-    const metaPromise = queryBuilder.getMeta();
+  const [topDeals, totalVendorsDeal, meta] = await Promise.all([
+    topDealsPromise,
+    totalVendorsDealPromise,
+    metaPromise,
+  ]);
 
+  // UPDATE  META DATA BASED ON SHOP OWNER
+  meta.total = totalVendorsDeal;
+  meta.totalPage = Math.ceil(totalVendorsDeal / meta.limit);
 
-
-    const [topDeals, totalVendorsDeal, meta] = await Promise.all([topDealsPromise, totalVendorsDealPromise, metaPromise]);
-
-    // UPDATE  META DATA BASED ON SHOP OWNER
-    meta.total = totalVendorsDeal;
-    meta.totalPage =  Math.ceil(totalVendorsDeal / meta.limit);
-
-  return {meta, topDeals};
+  return { meta, topDeals };
 };
 
 export const dealsServices = {
@@ -887,6 +1003,7 @@ export const dealsServices = {
   getSingleDealsService,
   getMyDealsService,
   getNearestDealsService,
+  getDealsByCategoryService,
   getAllDealsService,
   getDealsByIdsService,
   topViewedDealsService,

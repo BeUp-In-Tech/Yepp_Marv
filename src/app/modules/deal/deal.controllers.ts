@@ -28,7 +28,6 @@ const createDeals = CatchAsync(async (req: Request, res: Response, next: NextFun
     })
 });
 
-
 // VIEW DEAL
 const getSingleDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const dealId = req.params.dealId as string;
@@ -45,7 +44,6 @@ const getSingleDeals = CatchAsync(async (req: Request, res: Response, next: Next
     })
 });
 
-
 // DELETE SHOP
 const deleteDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
@@ -60,7 +58,6 @@ const deleteDeals = CatchAsync(async (req: Request, res: Response, next: NextFun
         data: result
     })
 });
-
 
 // DELETE SHOP
 const updateSingleDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -83,7 +80,6 @@ const updateSingleDeals = CatchAsync(async (req: Request, res: Response, next: N
     })
 });
 
-
 // DELETE SHOP
 const getMyDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
@@ -97,7 +93,6 @@ const getMyDeals = CatchAsync(async (req: Request, res: Response, next: NextFunc
         data: result
     })
 });
-
 
 // GET NEAREST DEALS
 const getNearestDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -146,6 +141,23 @@ const getDealsByIds = CatchAsync(async (req: Request, res: Response, next: NextF
     })
 })
 
+// GET DEALS BY CATEGORY
+const getDealsByCategory = CatchAsync(async  (req: Request, res: Response, next: NextFunction) => {
+    const categoryId = req.params.categoryId as string;
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const query = req.query as Record<string, string>;
+
+    const result = await dealsServices.getDealsByCategoryService(lng, lat, categoryId, query);
+
+    SendResponse(res, {
+        success: true,
+        statusCode:StatusCodes.OK,
+        message: "Category deals fetched",
+        data: result
+    })
+})
+
 // GET TOP VIEWED DEALS
 const topViewedDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
@@ -169,6 +181,7 @@ export const dealsControllers = {
     updateSingleDeals,
     getMyDeals,
     getNearestDeals,
+    getDealsByCategory,
     getAllDeals,
     getDealsByIds,
     topViewedDeals

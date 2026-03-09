@@ -39,6 +39,12 @@ router.get(
   dealsControllers.getSingleDeals
 );
 
+// GET DEALS BY CATEGORY
+router.get(
+  '/c/:categoryId',
+  dealsControllers.getDealsByCategory
+);
+
 // DELETE SERVICE
 router.delete(
   '/:serviceId',
