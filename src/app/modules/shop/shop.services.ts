@@ -15,6 +15,7 @@ import { notifyUser } from '../../utils/notification/push.notification';
 import { NotificationType } from '../notification/notification.interface';
 import env from '../../config/env';
 import { sendEmail } from '../../utils/sendMail';
+import { DealModel } from '../deal/deal.model';
 
 // Custom interface
 interface ShopCreatePayload {
@@ -355,8 +356,88 @@ const updateShopService = async (
   return updatedShop;
 };
 
+
+// SHOP ANALYTICS
+const getDealAnalyticsService = async (user: JwtPayload) => {
+  const userObjectId = new mongoose.Types.ObjectId(user.userId);
+
+  if (user.role !== Role.VENDOR) {
+    throw new AppError(StatusCodes.FORBIDDEN, "Forbidden");
+  }
+
+  const findVendorShop = await Shop.findOne({ vendor: userObjectId });
+  if (!findVendorShop) {
+    throw new AppError(StatusCodes.FORBIDDEN, "No shop found");
+  }
+
+  // Aggregate total stats
+  const stats = await DealModel.aggregate([
+    { $match: { shop: findVendorShop._id } },
+    {
+      $group: {
+        _id: null,
+        activeDeals: { $sum: { $cond: [{ $eq: ["$isPromoted", true] }, 1, 0] } },
+        totalViews: { $sum: "$total_views" },
+        totalImpressions: { $sum: "$total_impression" }
+      }
+    }
+  ]);
+
+  return stats[0] || { activeDeals: 0, totalViews: 0, totalImpressions: 0 };
+};
+
+// MONTHLY ANALYTICS (CHART)
+const getMonthlyAnalyticsService = async (user: JwtPayload, year: number) => {
+const userObjectId = new mongoose.Types.ObjectId(user.userId);
+
+  if (user.role !== Role.VENDOR) {
+    throw new AppError(StatusCodes.FORBIDDEN, "Forbidden");
+  }
+
+  const findVendorShop = await Shop.findOne({ vendor: userObjectId });
+  if (!findVendorShop) {
+    throw new AppError(StatusCodes.FORBIDDEN, "No shop found");
+  }
+
+  const startOfYear = new Date(`${year}-01-01`);
+  const endOfYear = new Date(`${year}-12-31`);
+
+  const monthlyStats = await DealModel.aggregate([
+    { $match: { shop: findVendorShop._id, createdAt: { $gte: startOfYear, $lte: endOfYear }}},
+    {
+      $project: {
+        month: { $month: "$createdAt" },
+        total_views: 1,
+        total_impression: 1
+      }
+    },
+    {
+      $group: {
+        _id: "$month",
+        views: { $sum: "$total_views" },
+        impressions: { $sum: "$total_impression" }
+      }
+    },
+    { $sort: { _id: 1 } }
+  ]);
+
+  // Fill missing months with 0
+  const result = Array.from({ length: 12 }, (_, i) => {
+    const monthData = monthlyStats.find(m => m._id === i + 1);
+    return {
+      month: i + 1,
+      views: monthData?.views || 0,
+      impressions: monthData?.impressions || 0
+    };
+  });
+
+  return result;
+};
+
 export const shopServices = {
   createShopService,
   getShopDetailsService,
   updateShopService,
+  getDealAnalyticsService,
+  getMonthlyAnalyticsService
 };

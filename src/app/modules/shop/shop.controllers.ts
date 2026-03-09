@@ -60,10 +60,39 @@ const updateShop = CatchAsync(async (req: Request, res: Response, next: NextFunc
 });
 
 
+const getDealAnalytics = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as JwtPayload;
+ 
+    const result = await shopServices.getDealAnalyticsService(user);
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Shop analytics fetched",
+        data: result
+    })
+});
+
+
+const getMonthlyAnalytics = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as JwtPayload;
+    const year = Number(req.query.year);
+    const result = await shopServices.getMonthlyAnalyticsService(user, year);
+
+     SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Shop monthly analytics fetched",
+        data: result
+    })
+});
+
+
 
 
 export const shopController = {
     createShop,
     getShopDetails,
-    updateShop
+    updateShop,
+    getDealAnalytics,
+    getMonthlyAnalytics
 }

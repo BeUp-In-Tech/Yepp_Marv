@@ -15,6 +15,10 @@ router.post('/create_shop', multerUpload.single('file'),  validateRequest(shopVa
 router.get('/shop_details', shopController.getShopDetails);
 // UPDATE SHOP
 router.patch('/update_shop/:shopId',  multerUpload.single('file'), validateRequest(updateShopValidationSchema), checkAuth(Role.VENDOR, Role.ADMIN),  shopController.updateShop);
+// SHOP ANALYTICS
+router.get('/analytics', checkAuth(Role.VENDOR), shopController.getDealAnalytics);
+// SHOP MONTHLY ANALYTICS
+router.get('/monthly_analytics', checkAuth(Role.VENDOR), shopController.getMonthlyAnalytics);
 
 
 
