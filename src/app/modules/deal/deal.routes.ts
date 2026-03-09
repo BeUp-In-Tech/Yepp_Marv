@@ -33,9 +33,9 @@ router.get('/my_deals', checkAuth(Role.VENDOR), dealsControllers.getMyDeals);
 // GET USERS SAVED DEALS
 router.get('/saved', dealsControllers.getDealsByIds);
 
-// GET SINGLE SERVICE
+// GET SINGLE DEALS
 router.get(
-  '/:serviceId',
+  '/:dealId/:lng/:lat',
   dealsControllers.getSingleDeals
 );
 

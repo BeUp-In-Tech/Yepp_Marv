@@ -31,8 +31,11 @@ const createDeals = CatchAsync(async (req: Request, res: Response, next: NextFun
 
 // VIEW DEAL
 const getSingleDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const dealId = req.params.serviceId as string;
-    const result = await dealsServices.getSingleDealsService( dealId );
+    const dealId = req.params.dealId as string;
+    const lng = Number(req.params.lng);
+    const lat =  Number( req.params.lat );
+
+    const result = await dealsServices.getSingleDealsService( dealId, lat, lng );
 
     SendResponse(res, {
         success: true,
