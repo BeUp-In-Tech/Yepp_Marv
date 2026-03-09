@@ -55,6 +55,9 @@ router.patch(
   dealsControllers.updateSingleDeals
 );
 
+// GET TOP VIEWED DEALS
+router.get('/top_viewed_deals', checkAuth(Role.VENDOR), dealsControllers.topViewedDeals);
+
 
 
 

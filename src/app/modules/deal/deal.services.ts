@@ -132,154 +132,154 @@ const getSingleDealsService = async (
     throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
   }
 
- const deal = await DealModel.aggregate([
-  {
-    $match: { _id: dealId }
-  },
+  const deal = await DealModel.aggregate([
+    {
+      $match: { _id: dealId },
+    },
 
-  {
-    $lookup: {
-      from: "categories",
-      localField: "category",
-      foreignField: "_id",
-      as: "category"
-    }
-  },
-  {
-    $unwind: "$category"
-  },
+    {
+      $lookup: {
+        from: 'categories',
+        localField: 'category',
+        foreignField: '_id',
+        as: 'category',
+      },
+    },
+    {
+      $unwind: '$category',
+    },
 
-  {
-    $lookup: {
-      from: "shops",
-      localField: "shop",
-      foreignField: "_id",
-      as: "shop"
-    }
-  },
-  {
-    $unwind: "$shop"
-  },
+    {
+      $lookup: {
+        from: 'shops',
+        localField: 'shop',
+        foreignField: '_id',
+        as: 'shop',
+      },
+    },
+    {
+      $unwind: '$shop',
+    },
 
-  {
-    $project: {
-      "category.updatedAt": 0,
-      "category.createdAt": 0,
-      "shop.vendor": 0,
-      "shop.description": 0,
-      "shop.business_phone": 0,
-      "shop.business_email": 0,
-      "shop.business_logo": 0,
-      "shop.updatedAt": 0,
-      "shop.createdAt": 0,
-      "shop.__v": 0
-    }
-  },
+    {
+      $project: {
+        'category.updatedAt': 0,
+        'category.createdAt': 0,
+        'shop.vendor': 0,
+        'shop.description': 0,
+        'shop.business_phone': 0,
+        'shop.business_email': 0,
+        'shop.business_logo': 0,
+        'shop.updatedAt': 0,
+        'shop.createdAt': 0,
+        'shop.__v': 0,
+      },
+    },
 
-  {
-    $lookup: {
-      from: "outlets",
-      localField: "available_in_outlet",
-      foreignField: "_id",
-      as: "available_outlet"
-    }
-  },
+    {
+      $lookup: {
+        from: 'outlets',
+        localField: 'available_in_outlet',
+        foreignField: '_id',
+        as: 'available_outlet',
+      },
+    },
 
-  {
-    $unwind: "$available_outlet"
-  },
+    {
+      $unwind: '$available_outlet',
+    },
 
-  {
-    $addFields: {
-      "available_outlet.distance": {
-        $round: [
-          {
-            $multiply: [
-              {
-                $sqrt: {
-                  $add: [
-                    {
-                      $pow: [
-                        {
-                          $subtract: [
-                            {
-                              $arrayElemAt: [
-                                "$available_outlet.location.coordinates",
-                                1
-                              ]
-                            },
-                            lat
-                          ]
-                        },
-                        2
-                      ]
-                    },
-                    {
-                      $pow: [
-                        {
-                          $subtract: [
-                            {
-                              $arrayElemAt: [
-                                "$available_outlet.location.coordinates",
-                                0
-                              ]
-                            },
-                            lng
-                          ]
-                        },
-                        2
-                      ]
-                    }
-                  ]
-                }
-              },
-              111
-            ]
-          },
-          2
-        ]
-      }
-    }
-  },
+    {
+      $addFields: {
+        'available_outlet.distance': {
+          $round: [
+            {
+              $multiply: [
+                {
+                  $sqrt: {
+                    $add: [
+                      {
+                        $pow: [
+                          {
+                            $subtract: [
+                              {
+                                $arrayElemAt: [
+                                  '$available_outlet.location.coordinates',
+                                  1,
+                                ],
+                              },
+                              lat,
+                            ],
+                          },
+                          2,
+                        ],
+                      },
+                      {
+                        $pow: [
+                          {
+                            $subtract: [
+                              {
+                                $arrayElemAt: [
+                                  '$available_outlet.location.coordinates',
+                                  0,
+                                ],
+                              },
+                              lng,
+                            ],
+                          },
+                          2,
+                        ],
+                      },
+                    ],
+                  },
+                },
+                111,
+              ],
+            },
+            2,
+          ],
+        },
+      },
+    },
 
-  {
-    $sort: {
-      "available_outlet.distance": 1
-    }
-  },
+    {
+      $sort: {
+        'available_outlet.distance': 1,
+      },
+    },
 
-  {
-    $group: {
-      _id: "$_id",
-      deal: { $first: "$$ROOT" },
-      outlets: { $push: "$available_outlet" }
-    }
-  },
+    {
+      $group: {
+        _id: '$_id',
+        deal: { $first: '$$ROOT' },
+        outlets: { $push: '$available_outlet' },
+      },
+    },
 
-  {
-    $addFields: {
-      "deal.available_outlet": "$outlets"
-    }
-  },
+    {
+      $addFields: {
+        'deal.available_outlet': '$outlets',
+      },
+    },
 
-  {
-    $replaceRoot: {
-      newRoot: "$deal"
-    }
-  },
+    {
+      $replaceRoot: {
+        newRoot: '$deal',
+      },
+    },
 
-  {
-    $project: {
-      available_in_outlet: 0,
-      activePromotion: 0,
-      "available_outlet.shop": 0,
-      "available_outlet.zip_code": 0,
-      "available_outlet.createdAt": 0,
-      "available_outlet.updatedAt": 0,
-      "available_outlet.__v": 0
-    }
-  }
-]);
+    {
+      $project: {
+        available_in_outlet: 0,
+        activePromotion: 0,
+        'available_outlet.shop': 0,
+        'available_outlet.zip_code': 0,
+        'available_outlet.createdAt': 0,
+        'available_outlet.updatedAt': 0,
+        'available_outlet.__v': 0,
+      },
+    },
+  ]);
 
   const final_deal = deal[0];
 
@@ -841,6 +841,45 @@ const getDealsByIdsService = async (
   return deals;
 };
 
+// 9. GET TOP VIEWED DEALS
+const topViewedDealsService = async (
+  user: JwtPayload,
+  query: Record<string, string>
+) => {
+  const getShop = await Shop.findOne({ vendor: user.userId });
+  if (!getShop) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
+  }
+
+  // QUERY BUILDER
+  const queryBuilder = new QueryBuilder(
+    DealModel.find({ shop: getShop._id }).sort('total_views'),
+    query
+  );
+
+  const topDealsPromise = queryBuilder
+    .filter()
+    .select()
+    .sort()
+    .join()
+    .paginate()
+    .build();
+
+
+    const totalVendorsDealPromise = DealModel.countDocuments({ shop: getShop._id });
+    const metaPromise = queryBuilder.getMeta();
+
+
+
+    const [topDeals, totalVendorsDeal, meta] = await Promise.all([topDealsPromise, totalVendorsDealPromise, metaPromise]);
+
+    // UPDATE  META DATA BASED ON SHOP OWNER
+    meta.total = totalVendorsDeal;
+    meta.totalPage =  Math.ceil(totalVendorsDeal / meta.limit);
+
+  return {meta, topDeals};
+};
+
 export const dealsServices = {
   createDealsService,
   deleteDealsService,
@@ -850,4 +889,5 @@ export const dealsServices = {
   getNearestDealsService,
   getAllDealsService,
   getDealsByIdsService,
+  topViewedDealsService,
 };

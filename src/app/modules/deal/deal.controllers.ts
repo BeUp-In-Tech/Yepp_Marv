@@ -146,6 +146,20 @@ const getDealsByIds = CatchAsync(async (req: Request, res: Response, next: NextF
     })
 })
 
+// GET TOP VIEWED DEALS
+const topViewedDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user as JwtPayload;
+    const query = req.query as Record<string,string>;
+    const result = await dealsServices.topViewedDealsService(user, query);
+
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Top deals fetched",
+        data: result
+    })
+})
+
 
 
 export const dealsControllers = {
@@ -156,5 +170,6 @@ export const dealsControllers = {
     getMyDeals,
     getNearestDeals,
     getAllDeals,
-    getDealsByIds
+    getDealsByIds,
+    topViewedDeals
 }
