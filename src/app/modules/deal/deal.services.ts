@@ -530,6 +530,24 @@ const getDealsByCategoryService = async (
   const limit = Number(query.limit) || 20;
   const skip = (page - 1) * limit;
 
+  // Build the sort object.
+  const sort: Record<string, 1 | -1> = {};
+  if (query.sort) {
+    const sortField = query.sort.startsWith('-')
+      ? query.sort.substring(1)
+      : query.sort;
+    const sortOrder = query.sort.startsWith('-') ? -1 : 1;
+    // Let's assume non-distance fields are on the 'deal' sub-document
+    if (sortField === 'distance') {
+      sort[sortField] = sortOrder;
+    } else {
+      sort[`deal.${sortField}`] = sortOrder;
+    }
+  } else {
+    // Default to distance ascending.
+    sort['distance'] = 1;
+  }
+
   if (!lng || !lat || !categoryId) {
     throw new AppError(
       StatusCodes.BAD_REQUEST,
@@ -558,7 +576,7 @@ const getDealsByCategoryService = async (
         as: 'deal',
       },
     },
-    { $unwind: '$deal' },  
+    { $unwind: '$deal' },
     // Filter by category
 
     {
@@ -584,7 +602,7 @@ const getDealsByCategoryService = async (
     },
     { $unwind: '$shop' },
     // Sort by distance
-    { $sort: { distance: 1 } },
+    { $sort: sort },
     // Project needed fields
     {
       $project: {
@@ -600,6 +618,7 @@ const getDealsByCategoryService = async (
         'deal.images': 1,
       },
     },
+
     // Pagination
     { $skip: skip },
     { $limit: limit },
