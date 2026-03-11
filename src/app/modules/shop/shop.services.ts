@@ -4,18 +4,16 @@ import AppError from '../../errorHelpers/AppError';
 import User from '../user/user.model';
 import { IShop, ShopApproval } from './shop.interface';
 import { Shop } from './shop.model';
-import { deleteImageFromCLoudinary } from '../../config/cloudinary.config';
 import { Role } from '../user/user.interface';
 import mongoose, { Types } from 'mongoose';
 import { OutletModel } from '../outlet/outlet.model';
 import { JwtPayload } from 'jsonwebtoken';
 import { asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 import { redisClient } from '../../config/redis.config';
-import { notifyUser } from '../../utils/notification/push.notification';
 import { NotificationType } from '../notification/notification.interface';
 import env from '../../config/env';
-import { sendEmail } from '../../utils/sendMail';
 import { DealModel } from '../deal/deal.model';
+import { mailQueue, notificationQueue } from '../../queue/queue';
 
 // Custom interface
 interface ShopCreatePayload {
@@ -263,91 +261,142 @@ const updateShopService = async (
     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found or unauthorized');
   }
 
+  // =================BACKGROUND JOB HANDLING==============
+
   // DELETE EXISTING IMAGE ASYNCHRONOUSLY TO PREVENT LOAD FOR MAIN API RESPONSE
   setImmediate(async () => {
     // Delete old business logo
-    deleteImageFromCLoudinary(shop.business_logo);
-
-
-    // IF SHOP APPROVAL 'APPROVED'
-    if (
-      payload.shop_approval &&
-      payload.shop_approval === ShopApproval.APPROVED
-    ) {
-      // SEND NOTIFICATION AND EMAIL
-      notifyUser({
-        user: new Types.ObjectId(user._id),
-        title: 'Congratulations! Your shop approved by Yepp',
-        body: 'Your shop is live now. You can promote your service and deals',
-        type: NotificationType.SHOP,
-        entityId: shopId,
-        webUrl: `${env.FRONTEND_URL}/create-deal`,
-        deepLink: `${env.DEEP_LINK}/create-deal`,
-      });
-
-      // SEND EMAIL
-      const shopOwner = await User.findOne({ _id: updatedShop.vendor });
-      if (!shopOwner) {
-        return 0;
-      }
-
-      const now = new Date().toLocaleString();
-
-      sendEmail({
-        to: shopOwner.email,
-        subject: 'Congratulations! Your shop approved by Yepp',
-        templateName: 'shop_approval',
-        templateData: {
-          shop_owner_name: shopOwner.user_name,
-          shop_name: updatedShop.business_name,
-          entityId: updatedShop._id.toString(),
-          approval_date: now,
-          support_mail: env.ADMIN_MAIL,
-          redirect_url: `${env.FRONTEND_URL}/create-deal`,
-        },
-      });
-    }
-
-
-    // IF SHOP APPROVAL 'REJECTED'
-    if (
-      payload.shop_approval &&
-      payload.shop_approval === ShopApproval.REJECTED
-    ) {
-      // SEND NOTIFICATION AND EMAIL
-      notifyUser({
-        user: new Types.ObjectId(user._id),
-        title: 'Your shop created request rejected by Yepp',
-        body: 'Pleae kindly submit valid data and information about your business',
-        type: NotificationType.SHOP,
-        entityId: shopId,
-        webUrl: `${env.FRONTEND_URL}`,
-        deepLink: `${env.DEEP_LINK}`,
-      });
-
-      // SEND EMAIL
-      const shopOwner = await User.findOne({ _id: updatedShop.vendor });
-      if (!shopOwner) {
-        return 0;
-      }
-
-      const now = new Date().toLocaleString();
-
-      sendEmail({
-        to: shopOwner.email,
-        subject: 'Your shop created request rejected by Yepp',
-        templateName: 'shop_rejection',
-        templateData: {
-          shop_owner_name: shopOwner.user_name,
-          shop_name: updatedShop.business_name,
-          entityId: updatedShop._id.toString(),
-          reviewed_date: now,
-          support_mail: env.ADMIN_MAIL,
-          redirect_url: `${env.FRONTEND_URL}/create-shop`,
-        },
-      });
+    if (payload.business_logo && shop.business_logo) {
+      await asynSingleImageDelete(shop.business_logo);
     }
   });
+
+
+
+
+  //==================================================== BULLMQ JOB PROCESSING================================
+  // IF SHOP APPROVAL 'APPROVED'
+  if (
+    payload.shop_approval &&
+    payload.shop_approval === ShopApproval.APPROVED
+  ) {
+    // =============SEND NOTIFICATION=============
+    const notificationPayload = {
+      user: new Types.ObjectId(user._id),
+      title: 'Congratulations! Your shop approved by Yepp',
+      body: 'Your shop is live now. You can promote your service and deals',
+      type: NotificationType.SHOP,
+      entityId: shopId,
+      webUrl: `${env.FRONTEND_URL}/create-deal`,
+      deepLink: `${env.DEEP_LINK}/create-deal`,
+    };
+
+    // SEND EMAIL TO QUEUE
+    await notificationQueue.add('sendNotification', notificationPayload, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 3000,
+      },
+      removeOnComplete: true,
+      removeOnFail: 1000,
+    });
+
+    //================= SEND EMAIL ==========================
+    const shopOwner = await User.findOne({ _id: updatedShop.vendor });
+    if (!shopOwner) {
+      return 0;
+    }
+
+    const now = new Date().toLocaleString();
+    const emailPayload = {
+      to: shopOwner.email,
+      subject: 'Congratulations! Your shop approved by Yepp',
+      templateName: 'shop_approval',
+      templateData: {
+        shop_owner_name: shopOwner.user_name,
+        shop_name: updatedShop.business_name,
+        entityId: updatedShop._id.toString(),
+        approval_date: now,
+        support_mail: env.ADMIN_MAIL,
+        redirect_url: `${env.FRONTEND_URL}/create-deal`,
+      },
+    };
+
+    // SEND EMAIL TO QUEUE
+    await mailQueue.add('sendEmail', emailPayload, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 5000,
+      },
+      jobId: `shop-approval-${shopId}`,
+      removeOnComplete: true,
+    });
+  }
+
+  // IF SHOP APPROVAL 'REJECTED'
+  if (
+    payload.shop_approval &&
+    payload.shop_approval === ShopApproval.REJECTED
+  ) {
+    // =============SEND NOTIFICATION AND EMAIL============
+    const notificationPayload = {
+      user: new Types.ObjectId(user._id),
+      title: 'Your shop created request rejected by Yepp',
+      body: 'Pleae kindly submit valid data and information about your business',
+      type: NotificationType.SHOP,
+      entityId: shopId,
+      webUrl: `${env.FRONTEND_URL}`,
+      deepLink: `${env.DEEP_LINK}`,
+    }
+
+    // SEND EMAIL TO QUEUE
+    await notificationQueue.add('sendNotification', notificationPayload, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 3000,
+      },
+      removeOnComplete: true,
+      removeOnFail: 1000,
+    });
+
+
+
+    // ==================SEND EMAIL===============
+    const shopOwner = await User.findOne({ _id: updatedShop.vendor });
+    if (!shopOwner) {
+      return 0;
+    }
+
+    const now = new Date().toLocaleString();
+
+    const emailPayload = {
+      to: shopOwner.email,
+      subject: 'Your shop creation rejected by Yepp',
+      templateName: 'shop_rejection',
+      templateData: {
+        shop_owner_name: shopOwner.user_name,
+        shop_name: updatedShop.business_name,
+        entityId: updatedShop._id.toString(),
+        reviewed_date: now,
+        support_mail: env.ADMIN_MAIL,
+        redirect_url: `${env.FRONTEND_URL}/create-shop`,
+      },
+    };
+
+    // SEND EMAIL TO QUEUE
+    await mailQueue.add('sendEmail', emailPayload, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 5000,
+      },
+      jobId: `shop-approval-${shopId}`,
+      removeOnComplete: true,
+    });
+  }
 
   // REMOVE ALL CACHE KEY WHEN UPDATE
   await redisClient.del(`shop:${userId}`);
@@ -361,12 +410,12 @@ const getDealAnalyticsService = async (user: JwtPayload) => {
   const userObjectId = new mongoose.Types.ObjectId(user.userId);
 
   if (user.role !== Role.VENDOR) {
-    throw new AppError(StatusCodes.FORBIDDEN, "Forbidden");
+    throw new AppError(StatusCodes.FORBIDDEN, 'Forbidden');
   }
 
   const findVendorShop = await Shop.findOne({ vendor: userObjectId });
   if (!findVendorShop) {
-    throw new AppError(StatusCodes.FORBIDDEN, "No shop found");
+    throw new AppError(StatusCodes.FORBIDDEN, 'No shop found');
   }
 
   // Aggregate total stats
@@ -375,11 +424,13 @@ const getDealAnalyticsService = async (user: JwtPayload) => {
     {
       $group: {
         _id: null,
-        activeDeals: { $sum: { $cond: [{ $eq: ["$isPromoted", true] }, 1, 0] } },
-        totalViews: { $sum: "$total_views" },
-        totalImpressions: { $sum: "$total_impression" }
-      }
-    }
+        activeDeals: {
+          $sum: { $cond: [{ $eq: ['$isPromoted', true] }, 1, 0] },
+        },
+        totalViews: { $sum: '$total_views' },
+        totalImpressions: { $sum: '$total_impression' },
+      },
+    },
   ]);
 
   return stats[0] || { activeDeals: 0, totalViews: 0, totalImpressions: 0 };
@@ -387,46 +438,51 @@ const getDealAnalyticsService = async (user: JwtPayload) => {
 
 // MONTHLY ANALYTICS (CHART)
 const getMonthlyAnalyticsService = async (user: JwtPayload, year: number) => {
-const userObjectId = new mongoose.Types.ObjectId(user.userId);
+  const userObjectId = new mongoose.Types.ObjectId(user.userId);
 
   if (user.role !== Role.VENDOR) {
-    throw new AppError(StatusCodes.FORBIDDEN, "Forbidden");
+    throw new AppError(StatusCodes.FORBIDDEN, 'Forbidden');
   }
 
   const findVendorShop = await Shop.findOne({ vendor: userObjectId });
   if (!findVendorShop) {
-    throw new AppError(StatusCodes.FORBIDDEN, "No shop found");
+    throw new AppError(StatusCodes.FORBIDDEN, 'No shop found');
   }
 
   const startOfYear = new Date(`${year}-01-01`);
   const endOfYear = new Date(`${year}-12-31`);
 
   const monthlyStats = await DealModel.aggregate([
-    { $match: { shop: findVendorShop._id, createdAt: { $gte: startOfYear, $lte: endOfYear }}},
+    {
+      $match: {
+        shop: findVendorShop._id,
+        createdAt: { $gte: startOfYear, $lte: endOfYear },
+      },
+    },
     {
       $project: {
-        month: { $month: "$createdAt" },
+        month: { $month: '$createdAt' },
         total_views: 1,
-        total_impression: 1
-      }
+        total_impression: 1,
+      },
     },
     {
       $group: {
-        _id: "$month",
-        views: { $sum: "$total_views" },
-        impressions: { $sum: "$total_impression" }
-      }
+        _id: '$month',
+        views: { $sum: '$total_views' },
+        impressions: { $sum: '$total_impression' },
+      },
     },
-    { $sort: { _id: 1 } }
+    { $sort: { _id: 1 } },
   ]);
 
   // Fill missing months with 0
   const result = Array.from({ length: 12 }, (_, i) => {
-    const monthData = monthlyStats.find(m => m._id === i + 1);
+    const monthData = monthlyStats.find((m) => m._id === i + 1);
     return {
       month: i + 1,
       views: monthData?.views || 0,
-      impressions: monthData?.impressions || 0
+      impressions: monthData?.impressions || 0,
     };
   });
 
@@ -438,5 +494,5 @@ export const shopServices = {
   getShopDetailsService,
   updateShopService,
   getDealAnalyticsService,
-  getMonthlyAnalyticsService
+  getMonthlyAnalyticsService,
 };

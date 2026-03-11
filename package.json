@@ -42,6 +42,7 @@
   "dependencies": {
     "@types/passport-google-oauth20": "^2.0.17",
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.70.4",
     "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
