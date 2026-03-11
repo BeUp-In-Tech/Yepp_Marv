@@ -8,6 +8,7 @@ import Stripe from "stripe";
 import AppError from "../../errorHelpers/AppError";
 import { StatusCodes } from "http-status-codes";
 import { DealModel } from "../../modules/deal/deal.model";
+import { redisClient } from "../../config/redis.config";
 
 
 export const paymentSuccessHandler = async (session: Stripe.Checkout.Session) => {
@@ -72,6 +73,11 @@ export const paymentSuccessHandler = async (session: Stripe.Checkout.Session) =>
                 { session: dbSession }
               );
             }
+
+
+
+            // REMOVE REDIS CACHE KEY
+            redisClient.del(`shop:${service.shop.toString()}`);
           });
     
 }

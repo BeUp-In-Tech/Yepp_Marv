@@ -493,6 +493,10 @@ const updateDealsService = async (
     }
   }
 
+
+   // REMOVE REDIS CACHE KEY
+    redisClient.del(`shop:${updatedService?.shop.toString()}`);
+
   return updatedService;
 };
 

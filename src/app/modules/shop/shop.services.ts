@@ -150,24 +150,40 @@ const getShopDetailsService = async (shopId?: string, my_shop?: string) => {
   }
 
   // Aggregate shop
+ 
   const isShopExist = await Shop.aggregate([
-    {
-      $match: shopQuery,
+  {
+    $match: shopQuery,
+  },
+  {
+    $lookup: {
+      from: 'outlets',
+      localField: '_id',
+      foreignField: 'shop',
+      as: 'outlets',
     },
-
-    {
-      $lookup: {
-        from: 'outlets',
-        localField: '_id',
-        foreignField: 'shop',
-        as: 'outlets',
-      },
+  },
+  {
+    $lookup: {
+      from: 'deals',
+      let: { shop: '$_id' },
+      pipeline: [
+        { $match: { $expr: { $eq: ['$shop', '$$shop'] } } },
+        { $match: { isPromoted: true, promotedUntil: { $gte: new Date() } } }
+      ],
+      as: 'deals',
     },
-  ]);
+  },
+  // Optional: you can project only what you need
+  // {
+  //   $project: {
+  //     name: 1,
+  //     outlets: 1,
+  //     deals: 1,
+  //   },
+  // },
+]);
 
-  if (!isShopExist || isShopExist.length === 0) {
-    throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
-  }
 
   // STORE DATA IN REDIS
   redisClient.set(shopCacheKey, JSON.stringify(isShopExist[0]), {
