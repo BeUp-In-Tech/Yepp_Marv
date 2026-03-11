@@ -13,7 +13,8 @@ import { redisClient } from '../../config/redis.config';
 import { NotificationType } from '../notification/notification.interface';
 import env from '../../config/env';
 import { DealModel } from '../deal/deal.model';
-import { mailQueue, notificationQueue } from '../../queue/queue';
+import { mailQueue, notificationQueue } from '../../queue/index.queue';
+
 
 // Custom interface
 interface ShopCreatePayload {

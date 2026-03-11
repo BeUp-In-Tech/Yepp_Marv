@@ -1,32 +1,29 @@
 /* eslint-disable no-console */
-import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
 import mongoose from 'mongoose';
 import env from '../config/env';
 import { notificationWorker } from './notification.worker';
 import { emailSendWorker } from './email_send.worker';
+import { dealHandleWorker } from './deal.worker';
+import { registerCleanupJob } from './helper/pending.register';
 
-export const connection = new IORedis({
-  host: '127.0.0.1',
-  port: 6379,
-  maxRetriesPerRequest: null,
-});
-
-export const dealReminderQueue = new Queue('dealReminderQueue', { connection });
-export const mailQueue = new Queue('emailSendQueue', { connection });
-export const notificationQueue = new Queue('notificationQueue', { connection });
-
+// RUN ALL WORKER JOB HERE WITH DATABASE CONNECTION
 const connectQueeuDB = async () => {
   try {
-    await mongoose.connect(env.MONGO_URI);
+    await mongoose.connect(env.MONGO_URI as string);
     console.log('Connected to queue database');
+
+    // CLEANUP JOB REGISTER HERE
+    await registerCleanupJob()
 
     // NOTIFICATION SEND WORKER
     notificationWorker();
 
     // EMAIL SEND WORKER
     emailSendWorker();
-    
+
+    // DEAL HANDLE WORKER
+    dealHandleWorker();
+
   } catch (error) {
     console.log('Error connecting to Redis:', error);
   }

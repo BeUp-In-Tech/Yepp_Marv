@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-console */
 import { Worker } from 'bullmq';
-import { connection } from './queue';
 import { sendEmail } from '../utils/sendMail';
+import { connection } from './index.queue';
 
 export const emailSendWorker = async () => {
   const worker = new Worker(

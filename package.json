@@ -9,7 +9,8 @@
     "start": "node ./dist/server.js",
     "lint": "npx eslint ./src",
     "build": "tsc",
-    "format": "npx prettier --write ."
+    "format": "npx prettier --write .",
+    "worker": "nodemon --watch src --exec ts-node ./src/app/queue/worker.ts"
   },
   "keywords": [
     "coupon",
