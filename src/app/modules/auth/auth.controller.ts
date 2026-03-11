@@ -39,8 +39,7 @@ const googleCallback = CatchAsync(
     if (!user) throw new AppError(httpStatus.BAD_REQUEST, 'User not found');
 
     const token = await createUserTokens(user);
-    SetCookies(res, token);
-    res.redirect(`${env.FRONTEND_URL}/${redirectTo}`); // Redirected to frontend url (With specific Routes)
+    res.redirect(`${env.FRONTEND_URL}/${redirectTo}?access=${token.accessToken}&refresh=${token.refreshToken}`); // Redirected to frontend url (With specific Routes)
   }
 );
 
