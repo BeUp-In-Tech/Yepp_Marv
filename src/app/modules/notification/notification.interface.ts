@@ -4,7 +4,6 @@ import { Types } from "mongoose";
 export enum NotificationType {
     SHOP = "SHOP",
     PROMOTE = "PROMOTE",
-    EXPIRATION = "EXPIRATION",
     REMINDER = "REMINDER",
     PAYMENT = "PAYMENT",
     SYSTEM = "SYSTEM"
