@@ -1,7 +1,8 @@
 /* eslint-disable no-console */
 import { Worker } from 'bullmq';
-import { pendingCleanUp } from './helper/pending.cleanup';
-import { connection } from './index.queue'
+import { pendingCleanUp } from '../helper/pending.cleanup';
+import { connection } from '../index.queue'
+import { dealExpireHandle } from '../helper/expiredDeal.update';
 
 
 export enum JobName {
@@ -24,6 +25,7 @@ export const dealHandleWorker = () => {
                 console.log("cleanup triggered");
                 break;
             case JobName.DEAL_EXPIRATION :
+                await dealExpireHandle()
                 break;
             case JobName.DEAL_REMINDER :
                 break;

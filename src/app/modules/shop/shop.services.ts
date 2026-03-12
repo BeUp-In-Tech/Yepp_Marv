@@ -173,15 +173,7 @@ const getShopDetailsService = async (shopId?: string, my_shop?: string) => {
       ],
       as: 'deals',
     },
-  },
-  // Optional: you can project only what you need
-  // {
-  //   $project: {
-  //     name: 1,
-  //     outlets: 1,
-  //     deals: 1,
-  //   },
-  // },
+  }
 ]);
 
 

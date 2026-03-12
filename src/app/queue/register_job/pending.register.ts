@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { JobName } from '../deal.worker';
+import { JobName } from '../worker/deal.worker';
 import { dealHandleQueue } from '../index.queue';
 
 

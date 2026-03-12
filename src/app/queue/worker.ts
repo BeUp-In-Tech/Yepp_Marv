@@ -1,10 +1,11 @@
 /* eslint-disable no-console */
 import mongoose from 'mongoose';
 import env from '../config/env';
-import { notificationWorker } from './notification.worker';
-import { emailSendWorker } from './email_send.worker';
-import { dealHandleWorker } from './deal.worker';
-import { registerCleanupJob } from './helper/pending.register';
+import { notificationWorker } from './worker/notification.worker';
+import { emailSendWorker } from './worker/email_send.worker';
+import { dealHandleWorker } from './worker/deal.worker';
+import { registerCleanupJob } from './register_job/pending.register';
+import { registerExpireDealsJob } from './register_job/expiredDeal.register';
 
 // RUN ALL WORKER JOB HERE WITH DATABASE CONNECTION
 const connectQueeuDB = async () => {
@@ -13,7 +14,10 @@ const connectQueeuDB = async () => {
     console.log('Connected to queue database');
 
     // CLEANUP JOB REGISTER HERE
-    await registerCleanupJob()
+    await registerCleanupJob();
+
+    // DEAL EXPIRE JOB REGISTER
+    await registerExpireDealsJob();
 
     // NOTIFICATION SEND WORKER
     notificationWorker();

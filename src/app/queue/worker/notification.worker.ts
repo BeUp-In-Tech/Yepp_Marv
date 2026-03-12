@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { Worker } from 'bullmq';
-import { connection } from './index.queue';
-import { notifyUser } from '../utils/notification/push.notification';
+import { connection } from '../index.queue';
+import { notifyUser } from '../../utils/notification/push.notification';
 
 // NOTIFICATION SEND WORKER
 
