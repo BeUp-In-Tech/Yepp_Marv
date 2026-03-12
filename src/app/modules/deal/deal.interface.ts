@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 
 export interface IDeal {
+    _id?: Types.ObjectId;
     shop: Types.ObjectId;
     category: Types.ObjectId;
     user: Types.ObjectId;
