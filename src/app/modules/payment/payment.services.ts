@@ -49,7 +49,7 @@ const stripePay = async (
   if (!shop) throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
 
   if (!deal.shop.equals(shop._id)) {
-    throw new AppError(StatusCodes.FORBIDDEN, 'Invalid service');
+    throw new AppError(StatusCodes.FORBIDDEN, 'Unauthorized');
   }
 
   // CHECK ALREADY PROMOTED
