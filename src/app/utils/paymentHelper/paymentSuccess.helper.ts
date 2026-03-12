@@ -9,6 +9,7 @@ import AppError from "../../errorHelpers/AppError";
 import { StatusCodes } from "http-status-codes";
 import { DealModel } from "../../modules/deal/deal.model";
 import { redisClient } from "../../config/redis.config";
+import { scheduleDealJobs } from "../../queue/job/deal.job";
 
 
 export const paymentSuccessHandler = async (session: Stripe.Checkout.Session) => {
@@ -50,16 +51,20 @@ export const paymentSuccessHandler = async (session: Stripe.Checkout.Session) =>
 
 
             /* ---- ADDED PROMOTION DURATION DIRECTLY IN DEALS OR SERVICE */
-            const service = await DealModel.findOne({ _id: promotion.deal });
-            if (!service) {
-              throw new AppError(StatusCodes.NOT_FOUND, `Service not found`);
+            const deal = await DealModel.findOne({ _id: promotion.deal });
+            if (!deal) {
+              throw new AppError(StatusCodes.NOT_FOUND, `deal not found`);
             }
 
-            service.promotedUntil = endDate;
-            service.isPromoted = true;
-            service.activePromotion = promotion._id;
+            deal.promotedUntil = endDate;
+            deal.isPromoted = true;
+            deal.activePromotion = promotion._id;
 
-            await service.save({ session: dbSession });
+            await deal.save({ session: dbSession });
+
+
+            // ADD QUEUE JOB SCHEDULE
+            scheduleDealJobs(deal);
     
             /* ---- VOUCHER DECREMENT (SAFE) ---- */
     
@@ -77,7 +82,7 @@ export const paymentSuccessHandler = async (session: Stripe.Checkout.Session) =>
 
 
             // REMOVE REDIS CACHE KEY
-            redisClient.del(`shop:${service.shop.toString()}`);
+            redisClient.del(`shop:${deal.shop.toString()}`);
           });
     
 }
