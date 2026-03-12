@@ -123,136 +123,69 @@ const getSingleDealsService = async (
 ) => {
   const dealId = new mongoose.Types.ObjectId(_dealId);
 
+
+  // ADD VIEW
   const addView = await DealModel.findByIdAndUpdate(
     { _id: dealId },
     { $inc: { total_views: 1 } }
   );
 
+  // IF DEAL NOT FOUND
   if (!addView) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
   }
 
-  const deal = await DealModel.aggregate([
+  const deal = await OutletModel.aggregate([
+    // FIND OUTLETS NEAR USER
     {
-      $match: { _id: dealId },
+      $geoNear: {
+        near: {
+          type: 'Point',
+          coordinates: [lng, lat],
+        },
+        distanceField: 'distance',
+        spherical: true,
+      },
     },
 
+    // FIND DEAL AVAILABLE IN THIS OUTLET
     {
       $lookup: {
-        from: 'categories',
-        localField: 'category',
-        foreignField: '_id',
-        as: 'category',
-      },
-    },
-    {
-      $unwind: '$category',
-    },
-
-    {
-      $lookup: {
-        from: 'shops',
-        localField: 'shop',
-        foreignField: '_id',
-        as: 'shop',
-      },
-    },
-    {
-      $unwind: '$shop',
-    },
-
-    {
-      $project: {
-        'category.updatedAt': 0,
-        'category.createdAt': 0,
-        'shop.vendor': 0,
-        'shop.description': 0,
-        'shop.business_phone': 0,
-        'shop.business_email': 0,
-        'shop.business_logo': 0,
-        'shop.updatedAt': 0,
-        'shop.createdAt': 0,
-        'shop.__v': 0,
+        from: 'deals',
+        localField: '_id',
+        foreignField: 'available_in_outlet',
+        as: 'deal',
       },
     },
 
+    { $unwind: '$deal' },
+
+    // MATCH SPECIFIC DEAL
     {
-      $lookup: {
-        from: 'outlets',
-        localField: 'available_in_outlet',
-        foreignField: '_id',
-        as: 'available_outlet',
+      $match: {
+        'deal._id': dealId,
       },
     },
 
-    {
-      $unwind: '$available_outlet',
-    },
-
+    // ATTACH DISTANCE INTO OUTLET
     {
       $addFields: {
-        'available_outlet.distance': {
-          $round: [
-            {
-              $multiply: [
-                {
-                  $sqrt: {
-                    $add: [
-                      {
-                        $pow: [
-                          {
-                            $subtract: [
-                              {
-                                $arrayElemAt: [
-                                  '$available_outlet.location.coordinates',
-                                  1,
-                                ],
-                              },
-                              lat,
-                            ],
-                          },
-                          2,
-                        ],
-                      },
-                      {
-                        $pow: [
-                          {
-                            $subtract: [
-                              {
-                                $arrayElemAt: [
-                                  '$available_outlet.location.coordinates',
-                                  0,
-                                ],
-                              },
-                              lng,
-                            ],
-                          },
-                          2,
-                        ],
-                      },
-                    ],
-                  },
-                },
-                111,
-              ],
-            },
-            2,
-          ],
+        'deal.available_outlet': {
+          _id: '$_id',
+          name: '$name',
+          address: '$address',
+          location: '$location',
+          distance: '$distance',
         },
       },
     },
 
-    {
-      $sort: {
-        'available_outlet.distance': 1,
-      },
-    },
-
+    // GROUP ALL OUTLETS FOR THIS DEAL
     {
       $group: {
-        _id: '$_id',
-        deal: { $first: '$$ROOT' },
-        outlets: { $push: '$available_outlet' },
+        _id: '$deal._id',
+        deal: { $first: '$deal' },
+        outlets: { $push: '$deal.available_outlet' },
       },
     },
 
@@ -268,23 +201,52 @@ const getSingleDealsService = async (
       },
     },
 
+    // LOOKUP CATEGORY
+    {
+      $lookup: {
+        from: 'categories',
+        localField: 'category',
+        foreignField: '_id',
+        as: 'category',
+      },
+    },
+    { $unwind: '$category' },
+
+    // LOOKUP SHOP
+    {
+      $lookup: {
+        from: 'shops',
+        localField: 'shop',
+        foreignField: '_id',
+        as: 'shop',
+      },
+    },
+    { $unwind: '$shop' },
+
+    // CLEAN RESPONSE
     {
       $project: {
         available_in_outlet: 0,
         activePromotion: 0,
-        'available_outlet.shop': 0,
-        'available_outlet.zip_code': 0,
-        'available_outlet.createdAt': 0,
-        'available_outlet.updatedAt': 0,
-        'available_outlet.__v': 0,
+
+        'category.createdAt': 0,
+        'category.updatedAt': 0,
+
+        'shop.vendor': 0,
+        'shop.description': 0,
+        'shop.business_phone': 0,
+        'shop.business_email': 0,
+        'shop.updatedAt': 0,
+        'shop.createdAt': 0,
+        'shop.__v': 0,
       },
     },
   ]);
 
   const final_deal = deal[0];
 
-  if (final_deal.length === 0) {
-    throw new AppError(StatusCodes.NOT_FOUND, 'No deals found');
+  if (!final_deal) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
   }
 
   return final_deal;
@@ -493,9 +455,8 @@ const updateDealsService = async (
     }
   }
 
-
-   // REMOVE REDIS CACHE KEY
-    redisClient.del(`shop:${updatedService?.shop.toString()}`);
+  // REMOVE REDIS CACHE KEY
+  redisClient.del(`shop:${updatedService?.shop.toString()}`);
 
   return updatedService;
 };
