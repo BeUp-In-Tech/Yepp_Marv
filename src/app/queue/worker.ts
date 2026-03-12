@@ -4,8 +4,7 @@ import env from '../config/env';
 import { notificationWorker } from './worker/notification.worker';
 import { emailSendWorker } from './worker/email_send.worker';
 import { dealHandleWorker } from './worker/deal.worker';
-import { registerCleanupJob } from './register_job/pending.register';
-import { registerExpireDealsJob } from './register_job/expiredDeal.register';
+
 
 // RUN ALL WORKER JOB HERE WITH DATABASE CONNECTION
 const connectQueeuDB = async () => {
@@ -13,11 +12,9 @@ const connectQueeuDB = async () => {
     await mongoose.connect(env.MONGO_URI as string);
     console.log('Connected to queue database');
 
-    // CLEANUP JOB REGISTER HERE
-    await registerCleanupJob();
 
-    // DEAL EXPIRE JOB REGISTER
-    await registerExpireDealsJob();
+    // DEAL EXPIRATION AND REMINCDER HANDLING
+    dealHandleWorker();
 
     // NOTIFICATION SEND WORKER
     notificationWorker();
@@ -27,6 +24,11 @@ const connectQueeuDB = async () => {
 
     // DEAL HANDLE WORKER
     dealHandleWorker();
+
+    // await dealHandleQueue.obliterate({ force: true });
+    // const counts = await dealHandleQueue.getJobCounts();
+
+    // console.log(counts);
 
   } catch (error) {
     console.log('Error connecting to Redis:', error);

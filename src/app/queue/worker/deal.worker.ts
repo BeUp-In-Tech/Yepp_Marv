@@ -1,14 +1,14 @@
 /* eslint-disable no-console */
 import { Worker } from 'bullmq';
-import { pendingCleanUp } from '../helper/pending.cleanup';
 import { connection } from '../index.queue'
 import { dealExpireHandle } from '../helper/expiredDeal.update';
+import { oneDayReminder } from '../helper/reminder.deal';
 
 
 export enum JobName {
-  DEAL_REMINDER = 'DEAL_REMINDER',
-  CLEANUP_PENDING = 'CLEANUP_PENDING',
-  DEAL_EXPIRATION = 'DEAL_EXPIRATION'
+  DEAL_REMINDER_DAY = 'DEAL_REMINDER_DAY',
+  DEAL_REMINDER_HOUR = 'DEAL_REMINDER_HOUR',
+  DEAL_EXPIRE = 'DEAL_EXPIRE'
 }
 
 
@@ -20,14 +20,15 @@ export const dealHandleWorker = () => {
     async (job) => {
       try {
         switch (job.name) {
-            case JobName.CLEANUP_PENDING :
-                await pendingCleanUp();
+            case JobName.DEAL_REMINDER_DAY :
                 console.log("cleanup triggered");
+                await oneDayReminder(job.data.dealId);
                 break;
-            case JobName.DEAL_EXPIRATION :
-                await dealExpireHandle()
+            case JobName.DEAL_REMINDER_HOUR :
+              await oneDayReminder(job.data.dealId);
                 break;
-            case JobName.DEAL_REMINDER :
+            case JobName.DEAL_EXPIRE :
+              await dealExpireHandle(job.data.dealId);
                 break;
             default:
                 break;

@@ -1,24 +1,48 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-console */
+import { Types } from 'mongoose';
 import { DealModel } from '../../modules/deal/deal.model';
-import { PromotionStatus } from '../../modules/promotion/promotion.interface';
 import { Promotion } from '../../modules/promotion/promotion.model';
+import { PromotionStatus } from '../../modules/promotion/promotion.interface';
 
-export const dealExpireHandle = async () => {
-  console.log('Expire promoted deals job running...');
+export const dealExpireHandle = async (dealId: string) => {
+  try {
+    // DEAL UPDATE
+    const dealUpdate = await DealModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(dealId),
+        isPromoted: true,
+      },
+      {
+        $set: { isPromoted: false },
+      },
+      {
+        new: true,
+      }
+    );
 
-  const now = new Date();
+    if (!dealUpdate) {
+      console.log('Deal not found or not promoted');
+      return;
+    }
 
-  const expiredDeals = await DealModel.updateMany(
-    { promotedUntil: { $lte: now }, isPromoted: true },
-    { $set: { isPromoted: false } }
-  );
+    // PROMOTION UPDATE
+    const promotionUpdate = await Promotion.updateMany(
+      {
+        deal: new Types.ObjectId(dealId),
+        status: { $ne: PromotionStatus.EXPIRED }, // only update if not already expired
+      },
+      {
+        $set: { status: PromotionStatus.EXPIRED },
+      }
+    );
 
-   const expiredPromotion = await Promotion.updateMany(
-          { endAt: { $lte: now }, status: { $ne: PromotionStatus.EXPIRED }},
-          { $set: { status: PromotionStatus
-              .EXPIRED }}
-        );
-
-  console.log('Deals updated:', expiredDeals.modifiedCount);
-  console.log('Promotion updated:', expiredPromotion.modifiedCount );
+    console.log(`Deal "${dealUpdate?.title}" updated to isPromoted=false`);
+    console.log(
+      'Promotion updated to expired count:',
+      promotionUpdate.modifiedCount || 0
+    );
+  } catch (error: any) {
+    console.log(`Deal expire handle problem: `, error.message);
+  }
 };
