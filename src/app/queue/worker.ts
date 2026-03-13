@@ -25,11 +25,6 @@ const connectQueeuDB = async () => {
     // DEAL HANDLE WORKER
     dealHandleWorker();
 
-    // await dealHandleQueue.obliterate({ force: true });
-    // const counts = await dealHandleQueue.getJobCounts();
-
-    // console.log(counts);
-
   } catch (error) {
     console.log('Error connecting to Redis:', error);
   }

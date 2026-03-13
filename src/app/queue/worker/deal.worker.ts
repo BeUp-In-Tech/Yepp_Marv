@@ -2,7 +2,7 @@
 import { Worker } from 'bullmq';
 import { connection } from '../index.queue'
 import { dealExpireHandle } from '../helper/expiredDeal.update';
-import { oneDayReminder } from '../helper/reminder.deal';
+import { oneDayReminder, oneHourReminder } from '../helper/reminder.deal';
 
 
 export enum JobName {
@@ -25,7 +25,7 @@ export const dealHandleWorker = () => {
                 await oneDayReminder(job.data.dealId);
                 break;
             case JobName.DEAL_REMINDER_HOUR :
-              await oneDayReminder(job.data.dealId);
+              await oneHourReminder(job.data.dealId);
                 break;
             case JobName.DEAL_EXPIRE :
               await dealExpireHandle(job.data.dealId);
@@ -42,7 +42,7 @@ export const dealHandleWorker = () => {
 
   // LISTEN COMPLETED AND FAILED EVENT
   worker.on('completed', (job) => {
-    console.log('Job completed:', job.id);
+    console.log('Deal Job completed:', job.id);
   });
 
   worker.on('failed', (job, err) => {
