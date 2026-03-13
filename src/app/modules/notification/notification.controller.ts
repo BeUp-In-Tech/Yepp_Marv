@@ -6,6 +6,7 @@ import { StatusCodes } from "http-status-codes";
 import { notificationService } from "./notification.service";
 
 
+// GET ALL NOTIFICATION
 const readAllNotification = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const query = req.query as Record<string, string>;
     const result = await notificationService.readAllNotificationService(query );
@@ -19,7 +20,22 @@ const readAllNotification = CatchAsync(async (req: Request, res: Response, next:
 });
 
 
+// MARK NOTIFICATION AS READ
+const markNotificationAsRead = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const notificationId = req.params.id as string;
+    const result = await notificationService.markNotificationAsReadService(notificationId);
+
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Notification marked as read",
+        data: result
+    })
+});
+
+
 
 export const NotificationController = {
-    readAllNotification
+    readAllNotification,
+    markNotificationAsRead
 }

@@ -34,6 +34,21 @@ export const readAllNotificationService = async (
   };
 };
 
+export const markNotificationAsReadService = async (notificationId: string) => {
+  const notification = await NotificationModel.findByIdAndUpdate(
+    notificationId,
+    { $set: { isRead: true } },
+    { new: true }
+  );
+
+  if (!notification) {
+    throw new Error("Notification not found");
+  }
+
+  return notification;
+};
+
 export const notificationService = {
   readAllNotificationService,
+  markNotificationAsReadService
 };
