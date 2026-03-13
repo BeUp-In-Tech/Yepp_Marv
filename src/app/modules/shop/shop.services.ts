@@ -14,6 +14,7 @@ import { NotificationType } from '../notification/notification.interface';
 import env from '../../config/env';
 import { DealModel } from '../deal/deal.model';
 import { mailQueue, notificationQueue } from '../../queue/index.queue';
+import { Views_Impressions } from '../views_impression/vi.model';
 
 
 // Custom interface
@@ -423,85 +424,152 @@ const getDealAnalyticsService = async (user: JwtPayload) => {
   }
 
   const findVendorShop = await Shop.findOne({ vendor: userObjectId });
+
   if (!findVendorShop) {
     throw new AppError(StatusCodes.FORBIDDEN, 'No shop found');
   }
 
-  // Aggregate total stats
-  const stats = await DealModel.aggregate([
-    { $match: { shop: findVendorShop._id } },
+  const deals = await DealModel.find(
+    { shop: findVendorShop._id },
+    { _id: 1, isPromoted: 1 }
+  );
+
+  const dealIds = deals.map((d) => d._id);
+
+  const activeDeals = deals.filter((d) => d.isPromoted).length;
+
+  const analytics = await Views_Impressions.aggregate([
+    {
+      $match: {
+        deal: { $in: dealIds },
+      },
+    },
     {
       $group: {
         _id: null,
-        activeDeals: {
-          $sum: { $cond: [{ $eq: ['$isPromoted', true] }, 1, 0] },
+        totalViews: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'view'] }, 1, 0],
+          },
         },
-        totalViews: { $sum: '$total_views' },
-        totalImpressions: { $sum: '$total_impression' },
+        totalImpressions: {
+          $sum: {
+            $cond: [{ $eq: ['$type', 'impression'] }, 1, 0],
+          },
+        },
       },
     },
   ]);
 
-  return stats[0] || { activeDeals: 0, totalViews: 0, totalImpressions: 0 };
+  const totals = analytics[0] || {
+    totalViews: 0,
+    totalImpressions: 0,
+  };
+
+  return {
+    _id: null,
+    activeDeals,
+    totalViews: totals.totalViews,
+    totalImpressions: totals.totalImpressions,
+  };
 };
 
-// MONTHLY ANALYTICS (CHART)
-const getMonthlyAnalyticsService = async (user: JwtPayload, year: number) => {
+// YEARLY ANALYTICS - 3 YEARS PERIODIC
+const getPrevious3YearsMonthlyAnalytics = async (user: JwtPayload) => {
   const userObjectId = new mongoose.Types.ObjectId(user.userId);
 
   if (user.role !== Role.VENDOR) {
     throw new AppError(StatusCodes.FORBIDDEN, 'Forbidden');
   }
 
-  const findVendorShop = await Shop.findOne({ vendor: userObjectId });
-  if (!findVendorShop) {
-    throw new AppError(StatusCodes.FORBIDDEN, 'No shop found');
+  const vendorShop = await Shop.findOne({ vendor: userObjectId });
+
+  if (!vendorShop) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
   }
 
-  const startOfYear = new Date(`${year}-01-01`);
-  const endOfYear = new Date(`${year}-12-31`);
+  const deals = await DealModel.find(
+    { shop: vendorShop._id },
+    { _id: 1 }
+  );
 
-  const monthlyStats = await DealModel.aggregate([
+  const dealIds = deals.map((d) => d._id);
+
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - 2;
+
+  const startDate = new Date(`${startYear}-01-01`);
+  const endDate = new Date(`${currentYear}-12-31`);
+
+  const stats = await Views_Impressions.aggregate([
     {
       $match: {
-        shop: findVendorShop._id,
-        createdAt: { $gte: startOfYear, $lte: endOfYear },
+        deal: { $in: dealIds },
+        createdAt: { $gte: startDate, $lte: endDate },
       },
     },
     {
       $project: {
-        month: { $month: '$createdAt' },
-        total_views: 1,
-        total_impression: 1,
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+        type: 1,
       },
     },
     {
       $group: {
-        _id: '$month',
-        views: { $sum: '$total_views' },
-        impressions: { $sum: '$total_impression' },
+        _id: {
+          year: "$year",
+          month: "$month",
+        },
+        views: {
+          $sum: {
+            $cond: [{ $eq: ["$type", "view"] }, 1, 0],
+          },
+        },
+        impressions: {
+          $sum: {
+            $cond: [{ $eq: ["$type", "impression"] }, 1, 0],
+          },
+        },
       },
     },
-    { $sort: { _id: 1 } },
+    {
+      $sort: {
+        "_id.year": 1,
+        "_id.month": 1,
+      },
+    },
   ]);
 
-  // Fill missing months with 0
-  const result = Array.from({ length: 12 }, (_, i) => {
-    const monthData = monthlyStats.find((m) => m._id === i + 1);
-    return {
-      month: i + 1,
-      views: monthData?.views || 0,
-      impressions: monthData?.impressions || 0,
-    };
-  });
+  const result: Record<
+    string,
+    { month: number; views: number; impressions: number }[]
+  > = {};
+
+  for (let y = startYear; y <= currentYear; y++) {
+    result[y] = [];
+
+    for (let m = 1; m <= 12; m++) {
+      const data = stats.find(
+        (s) => s._id.year === y && s._id.month === m
+      );
+
+      result[y].push({
+        month: m,
+        views: data?.views || 0,
+        impressions: data?.impressions || 0,
+      });
+    }
+  }
 
   return result;
 };
+
 
 export const shopServices = {
   createShopService,
   getShopDetailsService,
   updateShopService,
   getDealAnalyticsService,
-  getMonthlyAnalyticsService,
+  getPrevious3YearsMonthlyAnalytics
 };

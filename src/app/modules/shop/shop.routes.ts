@@ -18,7 +18,7 @@ router.patch('/update_shop/:shopId',  multerUpload.single('file'), validateReque
 // SHOP ANALYTICS
 router.get('/analytics', checkAuth(Role.VENDOR), shopController.getDealAnalytics);
 // SHOP MONTHLY ANALYTICS
-router.get('/monthly_analytics', checkAuth(Role.VENDOR), shopController.getMonthlyAnalytics);
+router.get('/yearly_analytics', checkAuth(Role.VENDOR), shopController.getPrevious3YearsMonthlyAnalytics);
 
 
 

@@ -15,6 +15,7 @@ import { OutletModel } from '../outlet/outlet.model';
 import { asynMultipleImageDelete } from '../../utils/singleImageDeleteAsync';
 import { ShopApproval } from '../shop/shop.interface';
 import { redisClient } from '../../config/redis.config';
+import { Views_Impressions } from '../views_impression/vi.model';
 
 // 1. CREATE SERVICE
 const createDealsService = async (params: {
@@ -123,19 +124,20 @@ const getSingleDealsService = async (
 ) => {
   const dealId = new mongoose.Types.ObjectId(_dealId);
 
-
-  // ADD VIEW
-  const addView = await DealModel.findByIdAndUpdate(
-    { _id: dealId },
-    { $inc: { total_views: 1 } }
-  );
-
   // IF DEAL NOT FOUND
-  if (!addView) {
+  const deal = await DealModel.findById(dealId);
+
+  if (!deal) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
   }
 
-  const deal = await OutletModel.aggregate([
+  // ADD VIEW
+  Views_Impressions.create({
+    deal: dealId,
+    type: 'view',
+  });
+
+  const deals = await OutletModel.aggregate([
     // FIND OUTLETS NEAR USER
     {
       $geoNear: {
@@ -243,7 +245,7 @@ const getSingleDealsService = async (
     },
   ]);
 
-  const final_deal = deal[0];
+  const final_deal = deals[0];
 
   if (!final_deal) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
@@ -749,10 +751,13 @@ const getNearestDealsService = async (
 
   // INCREASE IMPRESSION OF LOADED DATA
   setImmediate(async () => {
-    await DealModel.updateMany(
-      { _id: { $in: uniqueIds } },
-      { $inc: { total_impression: 1 } }
-    );
+    // create analytics documents
+    const analyticsDocs = uniqueIds.map((dealId) => ({
+      deal: dealId,
+      type: 'impression'
+    }));
+
+    await Views_Impressions.insertMany(analyticsDocs);
   });
 
   // CREATE META DATA
@@ -940,47 +945,148 @@ const getDealsByIdsService = async (
 };
 
 // 9. GET TOP VIEWED DEALS
+// const topViewedDealsService = async (
+//   user: JwtPayload,
+//   query: Record<string, string>
+// ) => {
+//   const getShop = await Shop.findOne({ vendor: user.userId });
+//   if (!getShop) {
+//     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
+//   }
+
+//   // QUERY BUILDER
+//   const queryBuilder = new QueryBuilder(
+//     DealModel.find({ shop: getShop._id }).sort('total_views'),
+//     query
+//   );
+
+//   const topDealsPromise = queryBuilder
+//     .filter()
+//     .select()
+//     .sort()
+//     .join()
+//     .paginate()
+//     .build();
+
+//   const totalVendorsDealPromise = DealModel.countDocuments({
+//     shop: getShop._id,
+//   });
+//   const metaPromise = queryBuilder.getMeta();
+
+//   const [topDeals, totalVendorsDeal, meta] = await Promise.all([
+//     topDealsPromise,
+//     totalVendorsDealPromise,
+//     metaPromise,
+//   ]);
+
+//   // UPDATE  META DATA BASED ON SHOP OWNER
+//   meta.total = totalVendorsDeal;
+//   meta.totalPage = Math.ceil(totalVendorsDeal / meta.limit);
+
+//   return { meta, topDeals };
+// };
 const topViewedDealsService = async (
   user: JwtPayload,
   query: Record<string, string>
 ) => {
   const getShop = await Shop.findOne({ vendor: user.userId });
+
   if (!getShop) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
   }
 
-  // QUERY BUILDER
-  const queryBuilder = new QueryBuilder(
-    DealModel.find({ shop: getShop._id }).sort('total_views'),
-    query
+  const deals = await DealModel.find(
+    { shop: getShop._id },
+    { _id: 1 }
   );
 
-  const topDealsPromise = queryBuilder
-    .filter()
-    .select()
-    .sort()
-    .join()
-    .paginate()
-    .build();
+  const dealIds = deals.map((d) => d._id);
 
-  const totalVendorsDealPromise = DealModel.countDocuments({
-    shop: getShop._id,
-  });
-  const metaPromise = queryBuilder.getMeta();
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-  const [topDeals, totalVendorsDeal, meta] = await Promise.all([
-    topDealsPromise,
-    totalVendorsDealPromise,
-    metaPromise,
+  const topDeals = await Views_Impressions.aggregate([
+    {
+      $match: {
+        deal: { $in: dealIds },
+      },
+    },
+
+    {
+      $group: {
+        _id: "$deal",
+        totalViews: {
+          $sum: {
+            $cond: [{ $eq: ["$type", "view"] }, 1, 0],
+          },
+        },
+        totalImpressions: {
+          $sum: {
+            $cond: [{ $eq: ["$type", "impression"] }, 1, 0],
+          },
+        },
+      },
+    },
+
+    { $sort: { totalViews: -1 } },
+
+    { $skip: skip },
+    { $limit: limit },
+
+    {
+      $lookup: {
+        from: "deals",
+        localField: "_id",
+        foreignField: "_id",
+        as: "deal",
+      },
+    },
+
+    { $unwind: "$deal" },
+
+    {
+      $replaceRoot: {
+        newRoot: {
+          $mergeObjects: [
+            "$deal",
+            {
+              totalViews: "$totalViews",
+              totalImpressions: "$totalImpressions",
+            },
+          ],
+        },
+      },
+    },
   ]);
 
-  // UPDATE  META DATA BASED ON SHOP OWNER
-  meta.total = totalVendorsDeal;
-  meta.totalPage = Math.ceil(totalVendorsDeal / meta.limit);
+  const totalDeals = await Views_Impressions.aggregate([
+    {
+      $match: {
+        deal: { $in: dealIds },
+      },
+    },
+    {
+      $group: {
+        _id: "$deal",
+      },
+    },
+    {
+      $count: "total",
+    },
+  ]);
+
+  const total = totalDeals[0]?.total || 0;
+
+  const meta = {
+    page,
+    limit,
+    total,
+    totalPage: Math.ceil(total / limit),
+  };
 
   return { meta, topDeals };
 };
-
 export const dealsServices = {
   createDealsService,
   deleteDealsService,
