@@ -945,46 +945,6 @@ const getDealsByIdsService = async (
 };
 
 // 9. GET TOP VIEWED DEALS
-// const topViewedDealsService = async (
-//   user: JwtPayload,
-//   query: Record<string, string>
-// ) => {
-//   const getShop = await Shop.findOne({ vendor: user.userId });
-//   if (!getShop) {
-//     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
-//   }
-
-//   // QUERY BUILDER
-//   const queryBuilder = new QueryBuilder(
-//     DealModel.find({ shop: getShop._id }).sort('total_views'),
-//     query
-//   );
-
-//   const topDealsPromise = queryBuilder
-//     .filter()
-//     .select()
-//     .sort()
-//     .join()
-//     .paginate()
-//     .build();
-
-//   const totalVendorsDealPromise = DealModel.countDocuments({
-//     shop: getShop._id,
-//   });
-//   const metaPromise = queryBuilder.getMeta();
-
-//   const [topDeals, totalVendorsDeal, meta] = await Promise.all([
-//     topDealsPromise,
-//     totalVendorsDealPromise,
-//     metaPromise,
-//   ]);
-
-//   // UPDATE  META DATA BASED ON SHOP OWNER
-//   meta.total = totalVendorsDeal;
-//   meta.totalPage = Math.ceil(totalVendorsDeal / meta.limit);
-
-//   return { meta, topDeals };
-// };
 const topViewedDealsService = async (
   user: JwtPayload,
   query: Record<string, string>
