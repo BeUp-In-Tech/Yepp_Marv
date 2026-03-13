@@ -82,6 +82,10 @@ const dealSchema = new Schema<IDeal>(
     promotedUntil: { type: Date, default: new Date(), index: true },
 
     coupon: { type: String },
+    coupon_option: {
+      qr: { type: String },
+      upc: { type: String },
+    },
 
     total_views: { type: Number, default: 0, min: 0 },
     total_impression: { type: Number, default: 0, min: 0 },

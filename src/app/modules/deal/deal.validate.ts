@@ -18,8 +18,10 @@ export const CreateDealZodSchema = z
     coupon: z.string("Coupon must be string"),
     available_in_outlet: z.array(z.string()),
 
-    total_views: z.number().int().nonnegative().optional(),
-    total_impression: z.number().int().nonnegative().optional(),
+    coupon_option: z.object({
+      qr: z.string().url().optional(),
+      upc: z.string().url().optional(),
+    }).optional()
   });
 
 // UPDATE ZOD SCHEMA
@@ -34,4 +36,8 @@ export const UpdateDealZodSchema = z.object({
   coupon: z
     .string("Coupon must be string")
     .optional(),
+  coupon_option: z.object({
+      qr: z.string().url().optional(),
+      upc: z.string().url().optional(),
+    }).optional()
 });

@@ -17,6 +17,10 @@ export interface IDeal {
     isPromoted?: boolean;
     promotedUntil?: Date;
     coupon: string;
+    coupon_option: {
+        qr?: string;
+        upc?: string;
+    }
     total_views?: number;
     total_impression?: number;
     available_in_outlet?: [Types.ObjectId];

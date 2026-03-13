@@ -7,16 +7,33 @@ import { dealsServices } from "./deal.services";
 import { JwtPayload } from "jsonwebtoken";
 
 
+interface MulterRequest extends Request {
+  files: {
+    qr?: Express.Multer.File[];
+    upc?: Express.Multer.File[];
+    files?: Express.Multer.File[];
+  };
+}
+
+
 // CREATE SHOP
 const createDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    
+    const _req = req as MulterRequest;
+    
     const user = req.user as JwtPayload;
 
     const payload = {
       ...req.body,
+      coupon_option: {
+        qr: _req.files.qr?.[0].path,
+        upc: _req.files.upc?.[0].path,
+      },
       images: req.files
-        ? (req.files as Express.Multer.File[]).map((file) => file.path)
+        ? (_req.files.files as Express.Multer.File[]).map((file) => file.path)
         : [],
     };
+
 
     const result = await dealsServices.createDealsService({ user, payload });
 

@@ -12,7 +12,7 @@ import { DealModel } from './deal.model';
 import { Category } from '../categories/categories.model';
 import { QueryBuilder } from '../../utils/QueryBuilder';
 import { OutletModel } from '../outlet/outlet.model';
-import { asynMultipleImageDelete } from '../../utils/singleImageDeleteAsync';
+import { asynMultipleImageDelete, asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 import { ShopApproval } from '../shop/shop.interface';
 import { redisClient } from '../../config/redis.config';
 import { Views_Impressions } from '../views_impression/vi.model';
@@ -42,6 +42,14 @@ const createDealsService = async (params: {
       await asynMultipleImageDelete(payload.images);
     }
 
+    if (payload.coupon_option.qr) {
+      await asynSingleImageDelete(payload.coupon_option.qr);
+    }
+
+    if (payload.coupon_option.upc) {
+      await asynSingleImageDelete(payload.coupon_option.upc);
+    }
+
     throw new AppError(
       StatusCodes.NOT_FOUND,
       'No relatable shop found to upload this deal. Create a shop first.'
@@ -54,6 +62,14 @@ const createDealsService = async (params: {
       await asynMultipleImageDelete(payload.images);
     }
 
+    if (payload.coupon_option.qr) {
+      await asynSingleImageDelete(payload.coupon_option.qr);
+    }
+
+    if (payload.coupon_option.upc) {
+      await asynSingleImageDelete(payload.coupon_option.upc);
+    }
+
     throw new AppError(StatusCodes.FORBIDDEN, 'Your shop was rejected');
   }
 
@@ -61,6 +77,14 @@ const createDealsService = async (params: {
   if (isShopExist.shop_approval !== ShopApproval.APPROVED) {
     if (payload.images) {
       await asynMultipleImageDelete(payload.images);
+    }
+
+    if (payload.coupon_option.qr) {
+      await asynSingleImageDelete(payload.coupon_option.qr);
+    }
+
+    if (payload.coupon_option.upc) {
+      await asynSingleImageDelete(payload.coupon_option.upc);
     }
 
     throw new AppError(StatusCodes.BAD_REQUEST, 'Wait for shop approval');
@@ -71,6 +95,14 @@ const createDealsService = async (params: {
   if (!isCategoryExist) {
     if (payload.images) {
       await asynMultipleImageDelete(payload.images);
+    }
+
+    if (payload.coupon_option.qr) {
+      await asynSingleImageDelete(payload.coupon_option.qr);
+    }
+
+    if (payload.coupon_option.upc) {
+      await asynSingleImageDelete(payload.coupon_option.upc);
     }
 
     throw new AppError(
@@ -110,6 +142,7 @@ const createDealsService = async (params: {
     images,
     available_in_outlet,
     coupon: payload.coupon,
+    coupon_option: payload.coupon_option
   };
   const doc = await DealModel.create(finalPayload);
 
