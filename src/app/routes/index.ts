@@ -8,6 +8,7 @@ import { serviceRouter } from '../modules/deal/deal.routes';
 import { planRouter } from '../modules/plan/plan.routes';
 import { voucherRouter } from '../modules/voucher/voucher.routes';
 import { paymentRouter } from '../modules/payment/payment.routes';
+import { NotificationRouter } from '../modules/notification/notification.route';
 
 export const router = Router();
 
@@ -47,6 +48,10 @@ const moduleRoutes = [
    {
     path: '/payment',
     route: paymentRouter
+   }, 
+   {
+    path: '/notification',
+    route: NotificationRouter
    }, 
 ];
 
