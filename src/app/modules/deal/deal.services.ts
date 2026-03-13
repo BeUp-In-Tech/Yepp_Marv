@@ -572,6 +572,7 @@ const getDealsByCategoryService = async (
     {
       $project: {
         distance: 1,
+        'shop._id': 1,
         'shop.business_name': 1,
         'shop.business_logo': 1,
         'deal._id': 1,
