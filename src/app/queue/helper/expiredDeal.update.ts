@@ -4,6 +4,7 @@ import { Types } from 'mongoose';
 import { DealModel } from '../../modules/deal/deal.model';
 import { Promotion } from '../../modules/promotion/promotion.model';
 import { PromotionStatus } from '../../modules/promotion/promotion.interface';
+import { redisClient } from '../../config/redis.config';
 
 export const dealExpireHandle = async (dealId: string) => {
   try {
@@ -42,6 +43,12 @@ export const dealExpireHandle = async (dealId: string) => {
       'Promotion updated to expired count:',
       promotionUpdate.modifiedCount || 0
     );
+
+
+    // CLEAR CHACHE
+    await redisClient.del(`shop:${dealUpdate.user.toString()}`);
+    await redisClient.del(`shop:${dealUpdate.shop.toString()}`);
+
   } catch (error: any) {
     console.log(`Deal expire handle problem: `, error.message);
   }
