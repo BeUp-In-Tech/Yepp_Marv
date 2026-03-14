@@ -19,7 +19,7 @@ router.post(
    multerUpload.fields([
     { name: 'files', maxCount: 10 },
     { name: 'qr', maxCount: 1 },
-    { name: 'upc', maxCount: 1 }
+    { name: 'upc', maxCount: 1 },
   ]),
   validateRequest(CreateDealZodSchema),
   dealsControllers.createDeals
@@ -60,7 +60,11 @@ router.delete(
 router.patch(
   '/:serviceId',
   checkAuth(Role.VENDOR),
-  multerUpload.array('files'),
+  multerUpload.fields([
+    { name: 'files', maxCount: 10 },
+    { name: 'qr', maxCount: 1 },
+    { name: 'upc', maxCount: 1 },
+  ]),
   validateRequest(UpdateDealZodSchema),
   dealsControllers.updateSingleDeals
 );
