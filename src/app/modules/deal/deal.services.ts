@@ -344,7 +344,7 @@ const updateDealsService = async (
   user: JwtPayload,
   dealId: string,
   payload: IDeal
-) => {
+) => {  
   // CHECK IF THE SERVICE EXISTS
   const deal = await DealModel.findById(dealId);
 
@@ -448,7 +448,7 @@ const updateDealsService = async (
     updatedImages = [
       ...new Set([
         ...updatedImages,
-        ...payload.images.map((url: string) => url.trim()),
+        ...payload.images.map((url: string) => url),
       ]),
     ];
   }
@@ -479,7 +479,7 @@ const updateDealsService = async (
 
   // BUILD THE UPDATE PAYLOAD
   const updateData: any = {};
-
+  
   if (payload.title) updateData.title = payload.title.trim();
   if (payload.description) updateData.description = payload.description.trim();
   if (payload.reguler_price !== undefined)
@@ -501,18 +501,23 @@ const updateDealsService = async (
   ) {
     updateData.highlight = updatedHighlights;
   }
+ 
 
   // ONLY UPDATE QR CODE IF CHANGES WERE MADE
-  if (payload.coupon_option.qr) {
+  if (payload?.coupon_option?.qr) {
     updateData.coupon_option = updateData.coupon_option || {upc: deal.coupon_option.upc};
-    updateData.coupon_option.qr = payload.coupon_option.qr;
+    updateData.coupon_option.qr = payload?.coupon_option?.qr;
   }
-
+  
+ 
   // ONLY UPDATE UPC
-  if (payload.coupon_option.upc) {
+  if (payload?.coupon_option?.upc) {
     updateData.coupon_option = updateData.coupon_option || {qr: deal.coupon_option.qr};
-    updateData.coupon_option.upc = payload.coupon_option.upc;
+    updateData.coupon_option.upc = payload?.coupon_option?.upc;
   }
+  
+ 
+
 
   // UPDATE THE SERVICE IN DATABASE
   const updatedService = await DealModel.findByIdAndUpdate(dealId, updateData, {
@@ -537,7 +542,7 @@ const updateDealsService = async (
     }
 
     // QR IMAGE DELETATION
-    if (payload.coupon_option.qr) {
+    if (payload?.coupon_option?.qr) {
       try {
         await asynSingleImageDelete(deal.coupon_option.qr as string);
       } catch (e) {
@@ -546,7 +551,7 @@ const updateDealsService = async (
     }
 
     // UPC IMAGE DELETATION
-    if (payload.coupon_option.upc) {
+    if (payload?.coupon_option?.upc) {
       try {
         await asynSingleImageDelete(deal.coupon_option.upc as string);
       } catch (e) {

@@ -14,7 +14,7 @@ export const CreateDealZodSchema = z
 
     highlight: z.array(z.string().min(1).max(120)).max(20).default([]),
     description: z.string("Description must be string").min(10).max(5000).trim(),
- 
+    images: z.array(z.string().url()),
     coupon: z.string("Coupon must be string"),
     available_in_outlet: z.array(z.string()),
 
@@ -31,6 +31,7 @@ export const UpdateDealZodSchema = z.object({
   discount: z.number("Discount must be number").min(0).max(100).optional(),
   highlight: z.array(z.string("Highlight must be string").min(1).max(120)).max(20).optional(),
   deletedHighlights: z.array(z.string().min(1).max(120)).max(20).optional(),
+  images: z.array(z.string().url()).optional(),
   description: z.string().min(10).max(5000).trim().optional(),
   deletedImages: z.array(z.string().url()).optional(), // Images should be an array of valid URLs
   coupon: z

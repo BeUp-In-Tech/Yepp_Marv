@@ -78,24 +78,10 @@ const deleteDeals = CatchAsync(async (req: Request, res: Response, next: NextFun
 
 // DELETE SHOP
 const updateSingleDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const _req = req as MulterRequest;
-
     const user = req.user as JwtPayload;
     const serviceId = req.params.serviceId as string;
     
-    const payload = {
-      ...req.body,
-      coupon_option: {
-        qr: _req.files.qr?.[0].path,
-        upc: _req.files.upc?.[0].path,
-      },
-      images: req.files
-        ? (_req.files?.files || [] as Express.Multer.File[]).map((file) => file.path)
-        : [],
-    };
-    
-    
-    const result = await dealsServices.updateDealsService( user, serviceId, payload);
+    const result = await dealsServices.updateDealsService( user, serviceId, req.body);
 
     SendResponse(res, {
         success: true,

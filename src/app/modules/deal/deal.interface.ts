@@ -21,8 +21,6 @@ export interface IDeal {
         qr?: string;
         upc?: string;
     }
-    total_views?: number;
-    total_impression?: number;
     available_in_outlet?: [Types.ObjectId];
     createdAt?: Date;
 }   

@@ -27,3 +27,4 @@ const storage = new CloudinaryStorage({
 });
 
 export const multerUpload = multer({ storage: storage });
+export const uploadMulter = multer({ storage: multer.memoryStorage() });
