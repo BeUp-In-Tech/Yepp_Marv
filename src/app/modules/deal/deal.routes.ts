@@ -4,12 +4,13 @@ import {
   CreateDealZodSchema,
   UpdateDealZodSchema,
 } from './deal.validate';
-import { multerUpload, uploadMulter } from '../../config/multer.config';
+import { uploadMulter } from '../../config/multer.config';
 import { checkAuth } from '../../middlewares/auth.middleware';
 import { Role } from '../user/user.interface';
 import { dealsControllers } from './deal.controllers';
 import { validateImageDimensions } from '../../middlewares/imageRatioValidation';
 import { uploadToCloudinary } from '../../middlewares/uploadCloudinary';
+import { preParseMiddleware } from '../../middlewares/helper.middleware';
 
 
 const router = Router();
@@ -18,11 +19,14 @@ const router = Router();
 router.post(
   '/',
   checkAuth(Role.VENDOR),
-   multerUpload.fields([
+   uploadMulter.fields([
     { name: 'files', maxCount: 10 },
     { name: 'qr', maxCount: 1 },
     { name: 'upc', maxCount: 1 },
   ]),
+  validateImageDimensions,
+  uploadToCloudinary,
+  preParseMiddleware,
   validateRequest(CreateDealZodSchema),
   dealsControllers.createDeals
 );

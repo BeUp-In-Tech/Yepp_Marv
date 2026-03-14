@@ -18,23 +18,8 @@ export interface MulterRequest extends Request {
 
 // CREATE SHOP
 const createDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    
-    const _req = req as MulterRequest;
-    
     const user = req.user as JwtPayload;
-
-    const payload = {
-      ...req.body,
-      coupon_option: {
-        qr: _req.files.qr?.[0].path,
-        upc: _req.files.upc?.[0].path,
-      },
-      images: req.files
-        ? (_req.files.files as Express.Multer.File[]).map((file) => file.path)
-        : [],
-    };
-
-
+    const payload = req.body;
     const result = await dealsServices.createDealsService({ user, payload });
 
     SendResponse(res, {
