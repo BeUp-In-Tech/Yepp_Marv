@@ -85,10 +85,7 @@ const dealSchema = new Schema<IDeal>(
     coupon_option: {
       qr: { type: String },
       upc: { type: String },
-    },
-
-    total_views: { type: Number, default: 0, min: 0 },
-    total_impression: { type: Number, default: 0, min: 0 },
+    }
   },
   { timestamps: true }
 );

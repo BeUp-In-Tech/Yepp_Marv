@@ -12,7 +12,10 @@ import { DealModel } from './deal.model';
 import { Category } from '../categories/categories.model';
 import { QueryBuilder } from '../../utils/QueryBuilder';
 import { OutletModel } from '../outlet/outlet.model';
-import { asynMultipleImageDelete, asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
+import {
+  asynMultipleImageDelete,
+  asynSingleImageDelete,
+} from '../../utils/singleImageDeleteAsync';
 import { ShopApproval } from '../shop/shop.interface';
 import { redisClient } from '../../config/redis.config';
 import { Views_Impressions } from '../views_impression/vi.model';
@@ -142,7 +145,7 @@ const createDealsService = async (params: {
     images,
     available_in_outlet,
     coupon: payload.coupon,
-    coupon_option: payload.coupon_option
+    coupon_option: payload.coupon_option,
   };
   const doc = await DealModel.create(finalPayload);
 
@@ -337,13 +340,6 @@ const deleteDealsService = async (user: JwtPayload, serviceId: string) => {
 };
 
 // 4. UPDATE SERVICE
-/**
- * @param user - Authenticated user (vendor)
- * @param serviceId - The service to update
- * @param payload - The updated data
- * @returns The updated service
- */
-
 const updateDealsService = async (
   user: JwtPayload,
   dealId: string,
@@ -351,17 +347,29 @@ const updateDealsService = async (
 ) => {
   // CHECK IF THE SERVICE EXISTS
   const deal = await DealModel.findById(dealId);
+
   if (!deal) {
-    // Delete iamge from cloudinary
-    if (payload.images) {
-      try {
-        await Promise.all(
-          payload.images.map((i) => deleteImageFromCLoudinary(i))
-        );
-      } catch (error: any) {
-        console.log('Cloudinary image deletation error: ', error.message);
+    // DELETE IMAGE ASYNC
+    setImmediate(async () => {
+      // Delete iamge from cloudinary
+      if (payload.images) {
+        try {
+          await Promise.all(
+            payload.images.map((i) => deleteImageFromCLoudinary(i))
+          );
+
+          if (payload.coupon_option.qr) {
+            await asynSingleImageDelete(payload.coupon_option.qr);
+          }
+
+          if (payload.coupon_option.upc) {
+            await asynSingleImageDelete(payload.coupon_option.upc);
+          }
+        } catch (error: any) {
+          console.log('Cloudinary image deletation error: ', error.message);
+        }
       }
-    }
+    });
 
     // Throw Error
     throw new AppError(StatusCodes.NOT_FOUND, 'Service not found');
@@ -370,16 +378,26 @@ const updateDealsService = async (
   // CHECK IF THE USER IS AUTHORIZED TO UPDATE THE SERVICE
   if (deal.user.toString() !== user.userId) {
     // Delete iamge from cloudinary
-    if (payload.images) {
-      try {
-        await Promise.all(
-          payload.images.map((i: string) => deleteImageFromCLoudinary(i))
-        );
-      } catch (error: any) {
-        console.log('Cloudinary image deletation error: ', error.message);
-      }
-    }
+    setImmediate(async () => {
+      // Delete iamge from cloudinary
+      if (payload.images) {
+        try {
+          await Promise.all(
+            payload.images.map((i) => deleteImageFromCLoudinary(i))
+          );
 
+          if (payload.coupon_option.qr) {
+            await asynSingleImageDelete(payload.coupon_option.qr);
+          }
+
+          if (payload.coupon_option.upc) {
+            await asynSingleImageDelete(payload.coupon_option.upc);
+          }
+        } catch (error: any) {
+          console.log('Cloudinary image deletation error: ', error.message);
+        }
+      }
+    });
     // Throw Error
     throw new AppError(
       StatusCodes.UNAUTHORIZED,
@@ -388,26 +406,39 @@ const updateDealsService = async (
   }
 
   // ENSURE THE SERVICE CAN ONLY BE UPDATED WITHIN 30 MINUTES OF CREATION
-  const serviceCreationTime = new Date(deal.createdAt as Date).getTime();
-  const currentTime = Date.now();
-  const timeDifference = currentTime - serviceCreationTime;
-  if (timeDifference > 30 * 60 * 1000) {
-    // 30 minutes
-    // Delete iamge from cloudinary
-    if (payload.images) {
-      try {
-        await Promise.all(
-          payload.images.map((i) => deleteImageFromCLoudinary(i))
-        );
-      } catch (error: any) {
-        console.log('Cloudinary image deletation error: ', error.message);
-      }
-    }
-    throw new AppError(
-      StatusCodes.FORBIDDEN,
-      'You can only update the service within 30 minutes of creation'
-    );
-  }
+  // const serviceCreationTime = new Date(deal.createdAt as Date).getTime();
+  // const currentTime = Date.now();
+  // const timeDifference = currentTime - serviceCreationTime;
+  // if (timeDifference > 30 * 60 * 1000) {
+  //   // 30 minutes
+  //   // Delete iamge from cloudinary
+  //    setImmediate(async () => {
+  //     // Delete iamge from cloudinary
+  //     if (payload.images) {
+  //       try {
+  //         await Promise.all(
+  //           payload.images.map((i) => deleteImageFromCLoudinary(i))
+  //         );
+
+  //         if (payload.coupon_option.qr) {
+  //           await asynSingleImageDelete(payload.coupon_option.qr);
+  //         }
+
+  //         if (payload.coupon_option.upc) {
+  //           await asynSingleImageDelete(payload.coupon_option.upc);
+  //         }
+  //       } catch (error: any) {
+  //         console.log('Cloudinary image deletation error: ', error.message);
+  //       }
+  //     }
+  //   });
+
+  //   // THROW ERROR
+  //   throw new AppError(
+  //     StatusCodes.FORBIDDEN,
+  //     'You can only update the service within 30 minutes of creation'
+  //   );
+  // }
 
   // INITIALIZE THE ARRAY TO HOLD THE UPDATED IMAGES
   let updatedImages: string[] = [...deal.images];
@@ -471,6 +502,18 @@ const updateDealsService = async (
     updateData.highlight = updatedHighlights;
   }
 
+  // ONLY UPDATE QR CODE IF CHANGES WERE MADE
+  if (payload.coupon_option.qr) {
+    updateData.coupon_option = updateData.coupon_option || {upc: deal.coupon_option.upc};
+    updateData.coupon_option.qr = payload.coupon_option.qr;
+  }
+
+  // ONLY UPDATE UPC
+  if (payload.coupon_option.upc) {
+    updateData.coupon_option = updateData.coupon_option || {qr: deal.coupon_option.qr};
+    updateData.coupon_option.upc = payload.coupon_option.upc;
+  }
+
   // UPDATE THE SERVICE IN DATABASE
   const updatedService = await DealModel.findByIdAndUpdate(dealId, updateData, {
     runValidators: true,
@@ -478,17 +521,39 @@ const updateDealsService = async (
   });
 
   // DELETE IMAGES FROM CLOUDINARY ASYNCHRONOUSLY IF NEEDED
-  if (payload.deletedImages && payload.deletedImages.length > 0) {
-    try {
-      await Promise.all(
-        payload.deletedImages.map((url: string) =>
-          deleteImageFromCLoudinary(url)
-        )
-      );
-    } catch (error) {
-      console.log(`Cloudinary image deleting error`, error);
+  setImmediate(async () => {
+
+    // DEAL IMAGE DELETATION
+    if (payload.deletedImages && payload.deletedImages.length > 0) {
+      try {
+        await Promise.all(
+          payload.deletedImages.map((url: string) =>
+            deleteImageFromCLoudinary(url)
+          )
+        );
+      } catch (error) {
+        console.log(`Cloudinary image deleting error`, error);
+      }
     }
-  }
+
+    // QR IMAGE DELETATION
+    if (payload.coupon_option.qr) {
+      try {
+        await asynSingleImageDelete(deal.coupon_option.qr as string);
+      } catch (e) {
+        console.log(`Cloudinary image deleting error`, e);
+      }
+    }
+
+    // UPC IMAGE DELETATION
+    if (payload.coupon_option.upc) {
+      try {
+        await asynSingleImageDelete(deal.coupon_option.upc as string);
+      } catch (e) {
+        console.log(`Cloudinary image deleting error`, e);
+      }
+    }
+  });
 
   // REMOVE REDIS CACHE KEY
   redisClient.del(`shop:${updatedService?.shop.toString()}`);
@@ -787,7 +852,7 @@ const getNearestDealsService = async (
     // create analytics documents
     const analyticsDocs = uniqueIds.map((dealId) => ({
       deal: dealId,
-      type: 'impression'
+      type: 'impression',
     }));
 
     await Views_Impressions.insertMany(analyticsDocs);
@@ -988,10 +1053,7 @@ const topViewedDealsService = async (
     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
   }
 
-  const deals = await DealModel.find(
-    { shop: getShop._id },
-    { _id: 1 }
-  );
+  const deals = await DealModel.find({ shop: getShop._id }, { _id: 1 });
 
   const dealIds = deals.map((d) => d._id);
 
@@ -1008,15 +1070,15 @@ const topViewedDealsService = async (
 
     {
       $group: {
-        _id: "$deal",
+        _id: '$deal',
         totalViews: {
           $sum: {
-            $cond: [{ $eq: ["$type", "view"] }, 1, 0],
+            $cond: [{ $eq: ['$type', 'view'] }, 1, 0],
           },
         },
         totalImpressions: {
           $sum: {
-            $cond: [{ $eq: ["$type", "impression"] }, 1, 0],
+            $cond: [{ $eq: ['$type', 'impression'] }, 1, 0],
           },
         },
       },
@@ -1029,23 +1091,23 @@ const topViewedDealsService = async (
 
     {
       $lookup: {
-        from: "deals",
-        localField: "_id",
-        foreignField: "_id",
-        as: "deal",
+        from: 'deals',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'deal',
       },
     },
 
-    { $unwind: "$deal" },
+    { $unwind: '$deal' },
 
     {
       $replaceRoot: {
         newRoot: {
           $mergeObjects: [
-            "$deal",
+            '$deal',
             {
-              totalViews: "$totalViews",
-              totalImpressions: "$totalImpressions",
+              totalViews: '$totalViews',
+              totalImpressions: '$totalImpressions',
             },
           ],
         },
@@ -1061,11 +1123,11 @@ const topViewedDealsService = async (
     },
     {
       $group: {
-        _id: "$deal",
+        _id: '$deal',
       },
     },
     {
-      $count: "total",
+      $count: 'total',
     },
   ]);
 
@@ -1080,6 +1142,8 @@ const topViewedDealsService = async (
 
   return { meta, topDeals };
 };
+
+// EXPORT ALL FUNCTION
 export const dealsServices = {
   createDealsService,
   deleteDealsService,
