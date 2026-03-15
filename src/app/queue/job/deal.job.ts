@@ -14,17 +14,17 @@ export const scheduleDealJobs = async (deal: IDeal) => {
     {
       name: JobName.DEAL_REMINDER_DAY,
       delay: oneDayBefore - now,
-      jobId: `${deal._id}-${JobName.DEAL_REMINDER_DAY}`
+      jobId: `${deal._id?.toString()}-${JobName.DEAL_REMINDER_DAY}`
     },
     {
       name: JobName.DEAL_REMINDER_HOUR,
       delay: oneHourBefore - now,
-      jobId: `${deal._id}-${JobName.DEAL_REMINDER_HOUR}`
+      jobId: `${deal._id?.toString()}-${JobName.DEAL_REMINDER_HOUR}`
     },
     {
       name: JobName.DEAL_EXPIRE,
       delay: expireTime - now,
-      jobId: `${deal._id}-${JobName.DEAL_EXPIRE}`
+      jobId: `${deal._id?.toString()}-${JobName.DEAL_EXPIRE}`
     },
   ];  
 
@@ -32,7 +32,7 @@ export const scheduleDealJobs = async (deal: IDeal) => {
     if (job.delay > 0) {
       await dealHandleQueue.add(
         job.name,
-        { dealId: deal._id },
+        { dealId: deal._id?.toString() },
         {
           delay: job.delay,
           jobId: job.jobId,
@@ -40,6 +40,9 @@ export const scheduleDealJobs = async (deal: IDeal) => {
           removeOnFail: 100,
         }
       );
+
+      console.log(`Scheduled ${job.name} in ${Math.round(job.delay / 1000)} seconds`);
+      
     }
   }
 
@@ -61,8 +64,8 @@ export const scheduleDealJobs = async (deal: IDeal) => {
 
 //   if (isTest) {
 //     // TEST MODE
-//     oneDayBefore = now + 1 * 60 * 1000;   // 1 minute
-//     oneHourBefore = now + 3 * 60 * 1000;  // 3 minutes
+//     oneHourBefore = now + 10 * 60 * 1000;   // 1 minute
+//     oneDayBefore = now + 3 * 60 * 1000;  // 3 minutes
 //   } else {
 //     // PRODUCTION MODE
 //     oneDayBefore = expireTime - 24 * 60 * 60 * 1000;

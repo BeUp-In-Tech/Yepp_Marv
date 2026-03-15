@@ -19,6 +19,8 @@ import { Request } from 'express';
 import { paymentSuccessHandler } from '../../utils/paymentHelper/paymentSuccess.helper';
 import { paymentFailedHandler } from '../../utils/paymentHelper/paymentFailed.helper';
 import { DealModel } from '../deal/deal.model';
+import { dealHandleQueue } from '../../queue/index.queue';
+import { JobName } from '../../queue/worker/deal.worker';
 
 // HELPER INTERFACE
 
@@ -197,6 +199,26 @@ const stripePay = async (
 
     await Promise.all([updatePayment, updatePromotion]);
 
+    // ADD JOB TO REMOVE PENDING DOC (PAYMENT/PROMOTION), IF USER DON'T PAY WITHING 15 MIN
+    const job = await dealHandleQueue.add(
+      JobName.PAYMENT_PENDING_CLEANUP_OVER_15MIN,
+      {
+        promotionId: promotion[0]._id.toString(),
+        paymentId: payment[0]._id.toString(),
+      },
+      {
+        delay: 15 * 60 * 1000,
+        jobId: `${promotion[0]._id.toString()}-${JobName.PAYMENT_PENDING_CLEANUP_OVER_15MIN}`,
+        removeOnComplete: true,
+        removeOnFail: 100,
+      }
+    );
+
+    // eslint-disable-next-line no-console
+    console.log("Job name:", job.name);
+
+
+    // RETURN CHECKOUT URL
     return { checkout_url: stripeSession.url };
   } catch (error: any) {
     // IF ERROR MAKE DB UPDATE WITH FAILED AND CANCELED

@@ -3,12 +3,14 @@ import { Worker } from 'bullmq';
 import { connection } from '../index.queue'
 import { dealExpireHandle } from '../helper/expiredDeal.update';
 import { oneDayReminder, oneHourReminder } from '../helper/reminder.deal';
+import removePaymentPendingOver15Min from '../helper/cleanup_payment_promotion_pending';
 
 
 export enum JobName {
   DEAL_REMINDER_DAY = 'DEAL_REMINDER_DAY',
   DEAL_REMINDER_HOUR = 'DEAL_REMINDER_HOUR',
-  DEAL_EXPIRE = 'DEAL_EXPIRE'
+  DEAL_EXPIRE = 'DEAL_EXPIRE',
+  PAYMENT_PENDING_CLEANUP_OVER_15MIN = 'PAYMENT_PENDING_CLEANUP_OVER_15MIN'
 }
 
 
@@ -29,6 +31,10 @@ export const dealHandleWorker = () => {
                 break;
             case JobName.DEAL_EXPIRE :
               await dealExpireHandle(job.data.dealId);
+                break;
+            case JobName.PAYMENT_PENDING_CLEANUP_OVER_15MIN :
+              await removePaymentPendingOver15Min({promotionId: job.data.promotionId, paymentId: 
+              job.data.paymentId});
                 break;
             default:
                 break;
