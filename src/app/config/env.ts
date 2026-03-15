@@ -40,6 +40,13 @@ interface EnvInterfaces {
   GOOGLE_OAUTH_SECRET: string;
   GOOGLE_CALLBACK_URL: string;
 
+  APPLE_TEAM_ID: string;
+  APPLE_KEY_ID: string;
+  APPLE_PRIVATE_KEY: string;
+  APPLE_IOS_CLIENT_ID: string;
+  APPLE_WEB_CLIENT_ID: string;
+  APPLE_WEB_REDIRECT_URI: string;
+
   EXPRESS_SESSION_SECRET: string;
 
   TYPE: string;
@@ -97,6 +104,14 @@ const loadEnvVarbles = (): EnvInterfaces => {
     'GOOGLE_OAUTH_SECRET',
     'GOOGLE_OAUTH_ID',
     'GOOGLE_CALLBACK_URL',
+
+    'APPLE_TEAM_ID',
+    'APPLE_KEY_ID',
+    'APPLE_PRIVATE_KEY',
+    'APPLE_IOS_CLIENT_ID',
+    'APPLE_WEB_CLIENT_ID',
+    'APPLE_WEB_REDIRECT_URI',
+
 
     'EXPRESS_SESSION_SECRET',
 
@@ -164,6 +179,14 @@ const loadEnvVarbles = (): EnvInterfaces => {
     GOOGLE_OAUTH_ID: process.env.GOOGLE_OAUTH_ID as string,
     GOOGLE_OAUTH_SECRET: process.env.GOOGLE_OAUTH_SECRET as string,
     GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL as string,
+
+    APPLE_TEAM_ID: process.env.APPLE_TEAM_ID as string,
+    APPLE_KEY_ID: process.env.APPLE_KEY_ID as string,
+    APPLE_PRIVATE_KEY: process.env.APPLE_PRIVATE_KEY as string,
+    APPLE_IOS_CLIENT_ID: process.env.APPLE_IOS_CLIENT_ID as string,
+    APPLE_WEB_CLIENT_ID: process.env.APPLE_WEB_CLIENT_ID as string,
+    APPLE_WEB_REDIRECT_URI: process.env.APPLE_WEB_REDIRECT_URI as string,
+
 
     EXPRESS_SESSION_SECRET: process.env.EXPRESS_SESSION_SECRET as string,
 
