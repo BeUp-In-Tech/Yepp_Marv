@@ -1038,12 +1038,19 @@ const getDealsByIdsService = async (
   const objectIds = ids.map((id) => new Types.ObjectId(id));
 
   const deals = await DealModel.find({ _id: { $in: objectIds } })
+    .populate({
+      path: 'shop',
+      select: 'business_name business_logo',
+    })
+    .sort({ createdAt: -1 })
     .limit(limit)
     .skip(skip);
 
   // SAVED RESPONSE IN THE REDIS CACHE
   await redisClient.set(cacheKey, JSON.stringify(deals), { EX: 1200 });
 
+  console.log("DB response");
+  
   return deals;
 };
 
