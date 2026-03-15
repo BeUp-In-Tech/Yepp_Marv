@@ -130,7 +130,6 @@ const createDealsService = async (params: {
     (outletId) => new Types.ObjectId(outletId)
   );
 
-
   // 5) CREATE
   const finalPayload = {
     shop: isShopExist._id,
@@ -346,7 +345,7 @@ const updateDealsService = async (
   user: JwtPayload,
   dealId: string,
   payload: IDeal
-) => {  
+) => {
   // CHECK IF THE SERVICE EXISTS
   const deal = await DealModel.findById(dealId);
 
@@ -481,7 +480,7 @@ const updateDealsService = async (
 
   // BUILD THE UPDATE PAYLOAD
   const updateData: any = {};
-  
+
   if (payload.title) updateData.title = payload.title.trim();
   if (payload.description) updateData.description = payload.description.trim();
   if (payload.reguler_price !== undefined)
@@ -503,23 +502,22 @@ const updateDealsService = async (
   ) {
     updateData.highlight = updatedHighlights;
   }
- 
 
   // ONLY UPDATE QR CODE IF CHANGES WERE MADE
   if (payload?.coupon_option?.qr) {
-    updateData.coupon_option = updateData.coupon_option || {upc: deal.coupon_option.upc};
+    updateData.coupon_option = updateData.coupon_option || {
+      upc: deal.coupon_option.upc,
+    };
     updateData.coupon_option.qr = payload?.coupon_option?.qr;
   }
-  
- 
+
   // ONLY UPDATE UPC
   if (payload?.coupon_option?.upc) {
-    updateData.coupon_option = updateData.coupon_option || {qr: deal.coupon_option.qr};
+    updateData.coupon_option = updateData.coupon_option || {
+      qr: deal.coupon_option.qr,
+    };
     updateData.coupon_option.upc = payload?.coupon_option?.upc;
   }
-  
- 
-
 
   // UPDATE THE SERVICE IN DATABASE
   const updatedService = await DealModel.findByIdAndUpdate(dealId, updateData, {
@@ -529,7 +527,6 @@ const updateDealsService = async (
 
   // DELETE IMAGES FROM CLOUDINARY ASYNCHRONOUSLY IF NEEDED
   setImmediate(async () => {
-
     // DEAL IMAGE DELETATION
     if (payload.deletedImages && payload.deletedImages.length > 0) {
       try {
@@ -588,7 +585,7 @@ const getMyDealsService = async (
     .paginate()
     .build();
   const meta = await queryBuilder.getMeta();
-  
+
   return {
     meta,
     deals,
@@ -966,6 +963,17 @@ const getAllDealsService = async (
       },
     },
 
+    // STAGE 6: PREVENT DUPLICATE RESULT FOR DISTANCE, KEEP ONLY NEAREST RESULT
+    {
+      $group: {
+        _id: '$deal._id', // Group by the field that should be unique
+        doc: { $first: '$$ROOT' }, // Keep the first entire document encountered
+      },
+    },
+    {
+      $replaceRoot: { newRoot: '$doc' }, // Replace the root with the saved document
+    },
+
     // STAGE 6: FINAL PROJECTION
     {
       $project: {
@@ -1057,7 +1065,7 @@ const getDealsByIdsService = async (
 
   // SAVED RESPONSE IN THE REDIS CACHE
   await redisClient.set(cacheKey, JSON.stringify(deals), { EX: 1200 });
-  
+
   return deals;
 };
 
