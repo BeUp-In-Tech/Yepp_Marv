@@ -578,11 +578,17 @@ const getMyDealsService = async (
   const deals = await queryBuilder
     .filter()
     .select()
+    .search(['title', 'description'])
+    .sort()
+    .select()
     .sort()
     .join()
     .paginate()
     .build();
   const meta = await queryBuilder.getMeta();
+
+  console.log("Hello");
+  
   return {
     meta,
     deals,

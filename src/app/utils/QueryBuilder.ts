@@ -26,6 +26,7 @@ export class QueryBuilder<T> {
   // Searching
   search(searchableField: string[]): this {
     const searchTerm = this.query.searchTerm || '';
+    
     const searchQuery = {
       $or: searchableField.map((field) => ({
         [field]: { $regex: searchTerm, $options: 'i' },
@@ -45,7 +46,9 @@ export class QueryBuilder<T> {
 
   // Field filtering
   select(): this {
+    
     const fields = this.query.fields?.split(',').join(' ') || ''; // ex: "title description price"
+
     this.queryModel = this.queryModel.select(fields);
     return this;
   }
@@ -67,12 +70,18 @@ export class QueryBuilder<T> {
         return this;
     }
 
-    const refs = joinQuery.split(",");
-    refs.forEach((ref) => {
-      return (this.queryModel = this.queryModel.populate({ path: ref }));
-    });
- 
-    return this;
+   const tests = joinQuery.split(",");
+
+   tests.forEach((test) => {
+     const [path, fields] = test.split('-');
+     const selectFields = fields ? fields.split('|').join(' ') : '';
+     this.queryModel = this.queryModel.populate({
+       path: path.trim(),
+       select: selectFields,
+     });
+   });
+
+   return this;
   }
 
   // Final build instance
