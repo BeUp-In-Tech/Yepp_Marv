@@ -11,6 +11,7 @@ export interface IDeal {
     discount: number;
     highlight: string[];
     deletedHighlights: [];
+    tags: string[];
     description: string;
     images: string[];
     deletedImages: string[];

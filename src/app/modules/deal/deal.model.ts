@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import mongoose, { Schema } from 'mongoose';
 import { IDeal } from './deal.interface';
+import { asynMultipleImageDelete } from '../../utils/singleImageDeleteAsync';
 
 const dealSchema = new Schema<IDeal>(
   {
@@ -40,6 +42,15 @@ const dealSchema = new Schema<IDeal>(
       validate: {
         validator: (arr: string[]) => Array.isArray(arr) && arr.length <= 20,
         message: 'highlight cannot exceed 20 items',
+      },
+    },
+
+    tags: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (arr: string[]) => Array.isArray(arr) && arr.length <= 20,
+        message: 'tags cannot exceed 50 items',
       },
     },
 
@@ -89,6 +100,17 @@ const dealSchema = new Schema<IDeal>(
   },
   { timestamps: true }
 );
+
+
+// IF ANY DUPLICATE ERROR DELETE IMAGES FROM STORAGE
+dealSchema.post('save', async function (error: any, doc: IDeal, next: any) {
+  if (error.code === 11000) {
+    await asynMultipleImageDelete(doc.images);
+    next(error);
+  } else {
+    next(error);
+  }
+});
 
 // Indexes you’ll use often
 dealSchema.index({ shop: 1, category: 1 });

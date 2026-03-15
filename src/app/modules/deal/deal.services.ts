@@ -130,6 +130,7 @@ const createDealsService = async (params: {
     (outletId) => new Types.ObjectId(outletId)
   );
 
+
   // 5) CREATE
   const finalPayload = {
     shop: isShopExist._id,
@@ -141,6 +142,7 @@ const createDealsService = async (params: {
     discount: payload.discount,
 
     highlight,
+    tags: payload.tags,
     description: payload.description,
     images,
     available_in_outlet,
@@ -586,8 +588,6 @@ const getMyDealsService = async (
     .paginate()
     .build();
   const meta = await queryBuilder.getMeta();
-
-  console.log("Hello");
   
   return {
     meta,
@@ -924,22 +924,7 @@ const getAllDealsService = async (
       $unwind: '$deal',
     },
 
-    // STAGE 3: SEARCH WITH SEARCH KEYWORD
-    {
-      $match: {
-        $or: [
-          { 'deal.title': { $regex: searchTerm, $options: 'i' } },
-          { 'deal.description': { $regex: searchTerm, $options: 'i' } },
-          { zip_code: { $regex: searchTerm, $options: 'i' } },
-        ],
-      },
-    },
-
-    {
-      $sort: { distance: 1 },
-    },
-
-    // STAGE 4: JOIN WITH SHOP FOR SHOP DETAILS
+    // STAGE 3: JOIN WITH SHOP FOR SHOP DETAILS
     {
       $lookup: {
         from: 'shops',
@@ -951,6 +936,24 @@ const getAllDealsService = async (
 
     {
       $unwind: '$shop',
+    },
+
+    // STAGE 4: SEARCH WITH SEARCH KEYWORD
+    {
+      $match: {
+        $or: [
+          { 'shop.business_name': { $regex: searchTerm, $options: 'i' } },
+          { 'deal.title': { $regex: searchTerm, $options: 'i' } },
+          { 'deal.description': { $regex: searchTerm, $options: 'i' } },
+          { 'deal.tags': { $regex: searchTerm, $options: 'i' } },
+          { 'deal.highlight': { $regex: searchTerm, $options: 'i' } },
+          { zip_code: { $regex: searchTerm, $options: 'i' } },
+        ],
+      },
+    },
+
+    {
+      $sort: { distance: 1 },
     },
 
     // STAGE 5: FETCH ONLY PROMOTED DEALS
