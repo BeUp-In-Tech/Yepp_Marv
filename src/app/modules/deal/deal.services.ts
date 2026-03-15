@@ -1054,8 +1054,6 @@ const getDealsByIdsService = async (
 
   // SAVED RESPONSE IN THE REDIS CACHE
   await redisClient.set(cacheKey, JSON.stringify(deals), { EX: 1200 });
-
-  console.log("DB response");
   
   return deals;
 };

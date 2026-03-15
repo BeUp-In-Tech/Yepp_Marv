@@ -81,6 +81,10 @@ export class QueryBuilder<T> {
      });
    });
 
+
+   // query example: shop-business_name|business_logo,category-category_name,category_logo
+
+   // return
    return this;
   }
 
