@@ -82,7 +82,8 @@ export const paymentSuccessHandler = async (session: Stripe.Checkout.Session) =>
 
 
             // REMOVE REDIS CACHE KEY
-            redisClient.del(`shop:${deal.shop.toString()}`);
+            await redisClient.del(`shop:${deal.shop.toString()}`);
+            await redisClient.del(`dashboard_analytics_total`); // dashboard analytics total
           });
     
 }
