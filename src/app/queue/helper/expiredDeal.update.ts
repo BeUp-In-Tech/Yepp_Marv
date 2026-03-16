@@ -5,6 +5,7 @@ import { DealModel } from '../../modules/deal/deal.model';
 import { Promotion } from '../../modules/promotion/promotion.model';
 import { PromotionStatus } from '../../modules/promotion/promotion.interface';
 import { redisClient } from '../../config/redis.config';
+import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
 
 export const dealExpireHandle = async (dealId: string) => {
   try {
@@ -48,7 +49,7 @@ export const dealExpireHandle = async (dealId: string) => {
     // CLEAR CHACHE
     await redisClient.del(`shop:${dealUpdate.user.toString()}`);
     await redisClient.del(`shop:${dealUpdate.shop.toString()}`);
-
+    await invalidateAllMachineryCache();
   } catch (error: any) {
     console.log(`Deal expire handle problem: `, error.message);
   }
