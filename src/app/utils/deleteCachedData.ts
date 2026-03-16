@@ -1,9 +1,7 @@
 import { redisClient } from "../config/redis.config";
 
-export async function invalidateAllMachineryCache() {
+export async function invalidateAllMachineryCache(pattern: string) {
   let cursor = "0";
-  const pattern = "machinery:*";
-
   do {
     const { cursor: newCursor, keys } = await redisClient.scan(cursor, {
       MATCH: pattern,
