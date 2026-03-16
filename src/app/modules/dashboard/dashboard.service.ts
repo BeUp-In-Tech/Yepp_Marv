@@ -412,6 +412,14 @@ const dashboardAnalyticsTotal = async () => {
 // 6. LAST ONE YEAR REVENUE TREND
 const getLastYearRevenueTrend = async () => {
 
+    const cacheKey = `last_one_year_revenue_trend`;
+    const getCachedData = await redisClient.get(cacheKey);
+
+    if (getCachedData) {
+      return JSON.parse(getCachedData);
+    }
+
+
   const now = new Date();
 
   const startDate = new Date();
@@ -469,7 +477,15 @@ const getLastYearRevenueTrend = async () => {
     });
   }
 
-  return finalTrend.reverse();
+  const final_data = finalTrend.reverse();
+
+  // STORE DATA IN REDIS
+  await redisClient.set(cacheKey, JSON.stringify(final_data), {
+    EX: 600, // 10 min
+  });
+  
+
+  return final_data;
 };
 
 // EXPORT ALL THE SERVICE LAYER
