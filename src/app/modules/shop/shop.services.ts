@@ -84,8 +84,7 @@ const createShopService = async (
           business_phone: payload.shop.business_phone,
           business_logo: payload.shop.business_logo,
           description: payload.shop.description.trim(),
-          website: payload.shop.website?.trim(),
-          coord: payload.shop.coord,
+          website: payload.shop.website?.trim()
         },
       ],
       { session }
@@ -245,20 +244,13 @@ const updateShopService = async (
     updateData.shop_approval = payload.shop_approval;
   }
 
-  // 5. coord → GeoJSON
-  if (payload.coord) {
-    updateData.location = {
-      type: 'Point',
-      coordinates: payload.coord,
-    };
-  }
 
-  // 6. If have image, delete previous one
+  // 5. If have image, delete previous one
   if (payload.business_logo) {
     updateData.business_logo = payload.business_logo;
   }
 
-  // 7. prevent empty update
+  // 6. prevent empty update
   if (Object.keys(updateData).length === 0) {
     throw new AppError(
       StatusCodes.BAD_REQUEST,
@@ -266,7 +258,7 @@ const updateShopService = async (
     );
   }
 
-  // 8. atomic ownership update
+  // 7.. atomic ownership update
   const validator = { new: true, runValidators: true };
   const updatedShop = await Shop.findOneAndUpdate(
     filter,
@@ -419,6 +411,7 @@ const updateShopService = async (
   await redisClient.del(`shop:${userId}`);
   await redisClient.del(`shop:${shopId}`);
   await invalidateAllMachineryCache("recent_vendors:");
+  await redisClient.del(`dashboard_analytics_total`); // dashboard analytics total
 
   return updatedShop;
 };

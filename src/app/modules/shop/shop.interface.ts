@@ -19,6 +19,5 @@ export interface IShop {
     business_logo: string;
     description: string;
     shop_approval: ShopApproval;
-    coord?: number[];
     website?: string;
 }
