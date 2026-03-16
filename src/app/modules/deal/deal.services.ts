@@ -19,6 +19,8 @@ import {
 import { ShopApproval } from '../shop/shop.interface';
 import { redisClient } from '../../config/redis.config';
 import { Views_Impressions } from '../views_impression/vi.model';
+import { generateCacheKey } from '../../utils/checheKeyGen';
+import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
 
 // 1. CREATE SERVICE
 const createDealsService = async (params: {
@@ -407,39 +409,39 @@ const updateDealsService = async (
   }
 
   // ENSURE THE SERVICE CAN ONLY BE UPDATED WITHIN 30 MINUTES OF CREATION
-  // const serviceCreationTime = new Date(deal.createdAt as Date).getTime();
-  // const currentTime = Date.now();
-  // const timeDifference = currentTime - serviceCreationTime;
-  // if (timeDifference > 30 * 60 * 1000) {
-  //   // 30 minutes
-  //   // Delete iamge from cloudinary
-  //    setImmediate(async () => {
-  //     // Delete iamge from cloudinary
-  //     if (payload.images) {
-  //       try {
-  //         await Promise.all(
-  //           payload.images.map((i) => deleteImageFromCLoudinary(i))
-  //         );
+  const serviceCreationTime = new Date(deal.createdAt as Date).getTime();
+  const currentTime = Date.now();
+  const timeDifference = currentTime - serviceCreationTime;
+  if (timeDifference > 30 * 60 * 1000) {
+    // 30 minutes
+    // Delete iamge from cloudinary
+     setImmediate(async () => {
+      // Delete iamge from cloudinary
+      if (payload.images) {
+        try {
+          await Promise.all(
+            payload.images.map((i) => deleteImageFromCLoudinary(i))
+          );
 
-  //         if (payload.coupon_option.qr) {
-  //           await asynSingleImageDelete(payload.coupon_option.qr);
-  //         }
+          if (payload.coupon_option.qr) {
+            await asynSingleImageDelete(payload.coupon_option.qr);
+          }
 
-  //         if (payload.coupon_option.upc) {
-  //           await asynSingleImageDelete(payload.coupon_option.upc);
-  //         }
-  //       } catch (error: any) {
-  //         console.log('Cloudinary image deletation error: ', error.message);
-  //       }
-  //     }
-  //   });
+          if (payload.coupon_option.upc) {
+            await asynSingleImageDelete(payload.coupon_option.upc);
+          }
+        } catch (error: any) {
+          console.log('Cloudinary image deletation error: ', error.message);
+        }
+      }
+    });
 
-  //   // THROW ERROR
-  //   throw new AppError(
-  //     StatusCodes.FORBIDDEN,
-  //     'You can only update the service within 30 minutes of creation'
-  //   );
-  // }
+    // THROW ERROR
+    throw new AppError(
+      StatusCodes.FORBIDDEN,
+      'You can only update the service within 30 minutes of creation'
+    );
+  }
 
   // INITIALIZE THE ARRAY TO HOLD THE UPDATED IMAGES
   let updatedImages: string[] = [...deal.images];
@@ -561,6 +563,7 @@ const updateDealsService = async (
 
   // REMOVE REDIS CACHE KEY
   redisClient.del(`shop:${updatedService?.shop.toString()}`);
+  await invalidateAllMachineryCache();
 
   return updatedService;
 };
@@ -735,6 +738,34 @@ const getNearestDealsService = async (
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
 
+  const searchTerm = query.search || '';
+  const fields = query.select ? query.select.split(',') : [];
+  const filter: Record<string, any> = {};
+
+  // STEP 1: GENERATE CACHE KEY
+  if (query.category) filter.category = query.category;
+  if (query.brand) filter.brand = query.brand;
+ 
+
+  const cacheKey = generateCacheKey({
+    searchTerm, 
+    filter,
+    page: Number(query.page) || 1,
+    limit: Number(query.limit) || 10,
+    sort: query.sort || '',
+    fields,
+    lat: userLat,
+    lng: userLng,
+  });
+
+  // STEP 2: CHECK CACHE
+  const cachedData = await redisClient.get(cacheKey);
+  if (cachedData) {
+    return JSON.parse(cachedData);
+  }
+
+
+  // DATABASE QUERY
   const pipeline: PipelineStage[] = [
     // STEP 1: GEO SEARCH (MUST BE FIRST STAGE)
     {
@@ -874,10 +905,19 @@ const getNearestDealsService = async (
     totalPages: Math.ceil(totalPromotedDoc / limit),
   };
 
-  return {
+  const data = {
     meta,
     deals: nearestDeals,
   };
+
+  // STEP 3: SAVE RESULT TO REDIS (10 min)
+  await redisClient.set(cacheKey, JSON.stringify(data), {
+    EX: 600,
+  });
+
+  console.log('Db response');
+
+  return data;
 };
 
 // 7. GET ALL DEALS
@@ -966,12 +1006,12 @@ const getAllDealsService = async (
     // STAGE 6: PREVENT DUPLICATE RESULT FOR DISTANCE, KEEP ONLY NEAREST RESULT
     {
       $group: {
-        _id: '$deal._id', // Group by the field that should be unique
-        doc: { $first: '$$ROOT' }, // Keep the first entire document encountered
+        _id: '$deal._id',  
+        doc: { $first: '$$ROOT' },  
       },
     },
     {
-      $replaceRoot: { newRoot: '$doc' }, // Replace the root with the saved document
+      $replaceRoot: { newRoot: '$doc' },  
     },
 
     // STAGE 6: FINAL PROJECTION
