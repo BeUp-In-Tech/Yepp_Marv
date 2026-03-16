@@ -152,6 +152,13 @@ const createDealsService = async (params: {
   };
   const doc = await DealModel.create(finalPayload);
 
+
+
+  // REMOVE CACHE (DASHBOARD API CHACHE)
+  redisClient.del('deals_by_category_stats');
+  await invalidateAllMachineryCache("recent_deals:*");
+  await invalidateAllMachineryCache("deals_stats:*");
+
   return doc;
 };
 
@@ -563,7 +570,9 @@ const updateDealsService = async (
 
   // REMOVE REDIS CACHE KEY
   redisClient.del(`shop:${updatedService?.shop.toString()}`);
-  await invalidateAllMachineryCache();
+  await invalidateAllMachineryCache("machinery:*");
+  await invalidateAllMachineryCache("recent_deals:*");
+  await invalidateAllMachineryCache("deals_stats:*");
 
   return updatedService;
 };
@@ -915,7 +924,6 @@ const getNearestDealsService = async (
     EX: 600,
   });
 
-  console.log('Db response');
 
   return data;
 };

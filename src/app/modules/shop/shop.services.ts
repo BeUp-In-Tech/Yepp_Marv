@@ -15,6 +15,7 @@ import env from '../../config/env';
 import { DealModel } from '../deal/deal.model';
 import { mailQueue, notificationQueue } from '../../queue/index.queue';
 import { Views_Impressions } from '../views_impression/vi.model';
+import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
 
 
 // Custom interface
@@ -107,6 +108,12 @@ const createShopService = async (
       await OutletModel.insertMany(outlets, { session, ordered: true });
     }
 
+    
+    // REMOVE CACHE (DASHBOARD API CHACHE)
+    await invalidateAllMachineryCache('recent_vendors:*');
+
+    
+    // SESSION END
     await session.commitTransaction();
     session.endSession();
 
@@ -411,6 +418,7 @@ const updateShopService = async (
   // REMOVE ALL CACHE KEY WHEN UPDATE
   await redisClient.del(`shop:${userId}`);
   await redisClient.del(`shop:${shopId}`);
+  await invalidateAllMachineryCache("recent_vendors:");
 
   return updatedShop;
 };
