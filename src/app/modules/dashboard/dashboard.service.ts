@@ -164,7 +164,7 @@ const dealsStats = async (query: Record<string, string>) => {
   const sortStage: any = {};
   sortStage[sortBy] = sortOrder;
 
-  const cacheKey = `deals_stats:${page}_${limit}_${sortBy}_${sortOrder}`;
+  const cacheKey = `deals_stats:${query.searchTerm || ''}_${page}_${limit}_${sortBy}_${sortOrder}`;
   const getCachedData = await redisClient.get(cacheKey);
 
 
@@ -176,6 +176,8 @@ const dealsStats = async (query: Record<string, string>) => {
 
   // DATABASE QUERY
   const result = await DealModel.aggregate([
+    
+    // STAGE 1: JOIN WITH VIEW IMPRESSION
     {
       $lookup: {
         from: 'views_impressions',
@@ -206,6 +208,8 @@ const dealsStats = async (query: Record<string, string>) => {
       },
     },
 
+
+    // STAGE 2: JOIN WITH SHOP
     {
       $lookup: {
         from: 'shops',
@@ -215,6 +219,7 @@ const dealsStats = async (query: Record<string, string>) => {
       },
     },
 
+    // JOIN WITH CATEGORY
     {
       $lookup: {
         from: 'categories',
@@ -238,6 +243,16 @@ const dealsStats = async (query: Record<string, string>) => {
       },
     },
 
+    {
+  $match: {
+    $or: [
+      { title: { $regex: query.searchTerm || '', $options: 'i' } },
+      { tags: { $regex: query.searchTerm || '', $options: 'i' } },
+      { 'shop.business_name': { $regex: query.searchTerm || '', $options: 'i' } },
+      { 'category.category_name': { $regex: query.searchTerm || '', $options: 'i' } }
+    ]
+  }
+},
     {
       $facet: {
         summary: [
@@ -275,6 +290,7 @@ const dealsStats = async (query: Record<string, string>) => {
         ],
       },
     },
+
   ]);
 
   const data = result[0];
