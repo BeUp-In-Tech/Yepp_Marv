@@ -409,11 +409,75 @@ const dashboardAnalyticsTotal = async () => {
   return final_data
 }
 
+// 6. LAST ONE YEAR REVENUE TREND
+const getLastYearRevenueTrend = async () => {
+
+  const now = new Date();
+
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 11);
+  startDate.setDate(1);
+
+  const trend = await PaymentModel.aggregate([
+    {
+      $match: {
+        payment_status: PaymentStatus.PAID,
+        createdAt: {
+          $gte: startDate,
+          $lte: now
+        }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          year: { $year: "$createdAt" },
+          month: { $month: "$createdAt" }
+        },
+        revenue: { $sum: "$amount" }
+      }
+    }
+  ]);
+
+  const monthNames = [
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
+  ];
+
+  // convert aggregation result to map
+  const revenueMap: Record<string, number> = {};
+  trend.forEach((item) => {
+    const key = `${item._id.year}-${item._id.month}`;
+    revenueMap[key] = item.revenue;
+  });
+
+  const finalTrend = [];
+
+  for (let i = 11; i >= 0; i--) {
+
+    const d = new Date();
+    d.setMonth(now.getMonth() - i);
+
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+
+    const key = `${year}-${month}`;
+
+    finalTrend.push({
+      month: monthNames[month - 1],
+      revenue: revenueMap[key] || 0
+    });
+  }
+
+  return finalTrend.reverse();
+};
+
 // EXPORT ALL THE SERVICE LAYER
 export const dashboardServices = {
   dealsByCategoryStats,
   recentVendorsStats,
   recentDealsStats,
   dealsStats,
-  dashboardAnalyticsTotal
+  dashboardAnalyticsTotal,
+  getLastYearRevenueTrend
 };

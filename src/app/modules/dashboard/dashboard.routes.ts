@@ -11,6 +11,7 @@ router.get('/vendor_list', checkAuth(Role.ADMIN), dashboardControllers.recentVen
 router.get('/recent_deals', checkAuth(Role.ADMIN), dashboardControllers.recentDealsStats);
 router.get('/deals_stats', checkAuth(Role.ADMIN), dashboardControllers.dealsStats);
 router.get('/dashboard_analytics_total', checkAuth(Role.ADMIN), dashboardControllers.dashboardAnalyticsTotal);
+router.get('/last_one_year_revenue_trend', checkAuth(Role.ADMIN), dashboardControllers.getRevenueTrend);
 
 
 export const dashboardRouter = router;
