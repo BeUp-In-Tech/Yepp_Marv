@@ -1,6 +1,9 @@
 import { redisClient } from '../../config/redis.config';
 import { QueryBuilder } from '../../utils/QueryBuilder';
 import { DealModel } from '../deal/deal.model';
+import { PaymentStatus } from '../payment/payment.interface';
+import { PaymentModel } from '../payment/payment.model';
+import { ShopApproval } from '../shop/shop.interface';
 import { Shop } from '../shop/shop.model';
 
 // 1. CATEGORY BY PROMOTED DEAL COUNT
@@ -321,10 +324,96 @@ const dealsStats = async (query: Record<string, string>) => {
   return final_data;
 };
 
+// 5. DASHBOARD ANALYTICS TOTAL
+const dashboardAnalyticsTotal = async () => {
+
+    const cacheKey = `dashboard_analytics_total`;
+    const getCachedData = await redisClient.get(cacheKey);
+  
+    // RETURN CACHED DATA
+    if (getCachedData) {
+      return JSON.parse(getCachedData);
+    }
+
+
+  const now = new Date()
+
+  // LAST 30 DAYS
+  const last30Days = new Date()
+  last30Days.setDate(now.getDate() - 30)
+
+  const [vendors, active_deals, revenue] = await Promise.all([
+
+    // ACTIVE VENDORS
+    Shop.countDocuments({
+      shop_approval: ShopApproval.APPROVED
+    }),
+
+    // ACTIVE DEALS
+    DealModel.countDocuments({
+      promotedUntil: { $gt: now }
+    }),
+
+    // LIFETIME REVENUE
+    PaymentModel.aggregate([
+      {
+        $match: {
+          payment_status: PaymentStatus.PAID
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          lifetimeRevenue: { $sum: "$amount" }
+        }
+      }
+    ])
+
+  ])
+
+
+  // LAST 30 DAYS REVENUE
+  const last30DaysRevenue = await PaymentModel.aggregate([
+    {
+      $match: {
+        payment_status: PaymentStatus.PAID,
+        createdAt: {
+          $gte: last30Days,
+          $lte: now
+        }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$amount" }
+      }
+    }
+  ])
+
+
+  const final_data = {
+    active_vendors: vendors,
+    active_deals,
+    total_revenue: revenue[0]?.lifetimeRevenue || 0,
+    last30Days_Revenue: last30DaysRevenue[0]?.total || 0
+  }
+
+
+  // STORE DATA IN REDIS
+  await redisClient.set(cacheKey, JSON.stringify(final_data), {
+    EX: 3600, // 1 hour
+    });
+  
+  // Return data
+  return final_data
+}
+
 // EXPORT ALL THE SERVICE LAYER
 export const dashboardServices = {
   dealsByCategoryStats,
   recentVendorsStats,
   recentDealsStats,
   dealsStats,
+  dashboardAnalyticsTotal
 };

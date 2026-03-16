@@ -57,11 +57,25 @@ const dealsStats = CatchAsync(async (req: Request, res: Response, next: NextFunc
 });
 
 
+// 5. DASHBOARD ANALYTICS TOTAL
+const dashboardAnalyticsTotal = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const result = await dashboardServices.dashboardAnalyticsTotal();
+
+    SendResponse(res,{
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Dashboard total anaylytics counts fetched successfully",
+        data: result
+    });
+});
+
+
 // EXPORT ALL THE CONTROLLERS
 export const dashboardControllers = {
     dealsByCategoryStats,
     recentVendorsStats,
     recentDealsStats,
-    dealsStats
+    dealsStats,
+    dashboardAnalyticsTotal
 }
 
