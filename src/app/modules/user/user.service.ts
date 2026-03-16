@@ -191,6 +191,7 @@ const verifyUserProfileService = async (email: string, otp: number) => {
 
   // OTP is valid, delete OTP from Redis
   await redisClient.del(`otp:${user.email}`);
+  await redisClient.del(`user_me:${user._id.toString()}`);
   return null;
 };
 
