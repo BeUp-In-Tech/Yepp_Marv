@@ -11,12 +11,12 @@ export enum NotificationType {
 
 export interface INotification {
     _id?: Types.ObjectId;
-    user: Types.ObjectId;
+    user?: Types.ObjectId;
     title: string;
     body: string;
     type: NotificationType;
     isRead?: boolean;
-    entityId: string;
+    entityId?: string;
     webUrl: string;
     deepLink: string;
     data?: Record<string, string>;

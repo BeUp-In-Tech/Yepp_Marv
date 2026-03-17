@@ -1,12 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Query } from 'mongoose';
+import env from '../../config/env';
+import admin from '../../config/firebase.config';
 import { redisClient } from '../../config/redis.config';
+import { sendBulkEmails } from '../../queue/helper/multipleEmailSendJob';
 import { QueryBuilder } from '../../utils/QueryBuilder';
 import { DealModel } from '../deal/deal.model';
+import { NotificationType } from '../notification/notification.interface';
+import { NotificationModel } from '../notification/notification.model';
 import { PaymentStatus } from '../payment/payment.interface';
 import { PaymentModel } from '../payment/payment.model';
 import { ShopApproval } from '../shop/shop.interface';
 import { Shop } from '../shop/shop.model';
+import User from '../user/user.model';
+import { IDashBoardNotificationPayload } from './dashboard.interface';
 
 // 1. CATEGORY BY PROMOTED DEAL COUNT
 const dealsByCategoryStats = async () => {
@@ -74,7 +80,6 @@ const dealsByCategoryStats = async () => {
   return data;
 };
 
-
 // 2. VENDORS STATS
 const allVendorsStats = async (query: Record<string, string>) => {
   const searchTerm = query.searchTerm || '';
@@ -91,7 +96,6 @@ const allVendorsStats = async (query: Record<string, string>) => {
   const order = sort.startsWith('-') ? -1 : 1;
   sortObj[field] = order;
 
-
   // MAKE REDIS KEY
   const cacheKey = `all_vendors_dashboard:${approval}_${searchTerm}_${page}_${limit}_${sort}`;
   const getCachedData = await redisClient.get(cacheKey);
@@ -101,7 +105,6 @@ const allVendorsStats = async (query: Record<string, string>) => {
     return JSON.parse(getCachedData);
   }
 
- 
   const pipeline: any[] = [];
 
   // STAGE 0: APPROVAL FILTER (early = faster)
@@ -231,7 +234,6 @@ const allVendorsStats = async (query: Record<string, string>) => {
   );
 
   const vendorsStats = await Shop.aggregate(pipeline);
-
 
   // STORE DATA IN REDIS
   await redisClient.set(cacheKey, JSON.stringify(vendorsStats), {
@@ -620,10 +622,8 @@ const getLastYearRevenueTrend = async () => {
   return final_data;
 };
 
-
 // 7. LATEST TRANSACTION
 const getLatestTransaction = async (query: Record<string, string>) => {
-
   // MAKE CACHE KEY
   const cacheKey = `latest_transaction:${query.join || ''}_${query.fields || ''}_${query.searchTerm || ''}_page_${query.page}_limit_${query.limit || ''}_sort_${query.sort || ''}`;
 
@@ -633,15 +633,22 @@ const getLatestTransaction = async (query: Record<string, string>) => {
     return JSON.parse(getCachedData);
   }
 
-
   // DATABASE QUERY
-  const queryBuilder = new QueryBuilder(PaymentModel.find({
-    payment_status: PaymentStatus.PAID,
-  }), query);
+  const queryBuilder = new QueryBuilder(
+    PaymentModel.find({
+      payment_status: PaymentStatus.PAID,
+    }),
+    query
+  );
 
-
-  const transactions = await queryBuilder.filter().search(['transaction_id']).select().join().sort().paginate().build();
-
+  const transactions = await queryBuilder
+    .filter()
+    .search(['transaction_id'])
+    .select()
+    .join()
+    .sort()
+    .paginate()
+    .build();
 
   const meta = await queryBuilder.getMeta();
 
@@ -650,19 +657,77 @@ const getLatestTransaction = async (query: Record<string, string>) => {
     transactions,
   };
 
-
   // STORE DATA IN REDIS
   await redisClient.set(cacheKey, JSON.stringify(data), {
     EX: 600, // 10 min
   });
 
-
   return data;
 };
 
+// 8. SEND SYSTEM NOTIFICATION AND EMAIL
+const sendNotificationAndEmail = async (
+  payload: IDashBoardNotificationPayload
+) => {
+  const { title, message, channel, to } = payload;
 
 
+  const allVendorsDeviceTokens = await User.find({}).select('email deviceTokens');
+      const filterDeviceToken = allVendorsDeviceTokens.map(
+        (deviceToken) => deviceToken.deviceTokens
+      );
+      const activeTokens = filterDeviceToken
+        .flat() 
+        .filter((device) => device?.isActive)  
+        .map((device) => device.token); 
 
+        const emails = allVendorsDeviceTokens.map((deviceToken) => deviceToken.email);
+
+
+  // 1. Send Push Notification if enabled
+  if (channel.push) {
+    if (to.active_vendors) {
+      
+        
+        
+        const notificationPayload = {
+                    title: title,
+                    body: message,
+                    type: NotificationType.SYSTEM,
+                    webUrl: `${env.FRONTEND_URL}/notification`,
+                    deepLink: `${env.DEEP_LINK}/notification`,
+                    data: {},
+              }
+
+      await NotificationModel.create(notificationPayload);
+
+       const messagePayload = {
+            tokens: activeTokens,
+            notification: {
+              title: title,
+              body: message || '',
+            },
+            data: {
+              type: NotificationType.SYSTEM,
+               webUrl: `${env.FRONTEND_URL}/notification`,
+               deepLink: `${env.DEEP_LINK}/notification`,
+            },
+          };
+
+        await admin.messaging().sendEachForMulticast(messagePayload);
+    }
+  }
+
+  // 2. Send Email if enabled
+  if (channel.email) {
+   sendBulkEmails(emails, {title, message});
+  }
+
+  return {
+    success: true,
+    message: 'Notification process initiated',
+  };
+};
 
 // EXPORT ALL THE SERVICE LAYER
 export const dashboardServices = {
@@ -672,5 +737,6 @@ export const dashboardServices = {
   dashboardAnalyticsTotal,
   getLastYearRevenueTrend,
   allVendorsStats,
-  getLatestTransaction
+  getLatestTransaction,
+  sendNotificationAndEmail,
 };

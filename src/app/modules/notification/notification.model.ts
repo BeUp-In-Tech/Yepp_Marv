@@ -4,8 +4,7 @@ import { model, Schema } from 'mongoose';
 const NotificationSchema = new Schema<INotification>(
   {
     user: {
-      type: Schema.Types.ObjectId,
-      required: true,
+      type: Schema.Types.ObjectId
     },
 
     title: {
@@ -31,9 +30,7 @@ const NotificationSchema = new Schema<INotification>(
     },
 
     entityId: {
-      type: String,
-      required: true,
-      index: true,
+      type: String
     },
 
     webUrl: {

@@ -95,6 +95,19 @@ const getLatestTransaction = CatchAsync(async (req: Request, res: Response, next
 });
 
 
+// 6. LAST ONE YEAR REVENUE TREND
+const sendNotificationAndEmail = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const result = await dashboardServices.sendNotificationAndEmail(req.body);
+
+    SendResponse(res,{
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Notification and email sentuccessfully",
+        data: result
+    });
+});
+
+
 
 // EXPORT ALL THE CONTROLLERS
 export const dashboardControllers = {
@@ -104,6 +117,7 @@ export const dashboardControllers = {
     dashboardAnalyticsTotal,
     getRevenueTrend,
     vendorsStats,
-    getLatestTransaction
+    getLatestTransaction,
+    sendNotificationAndEmail
 }
 

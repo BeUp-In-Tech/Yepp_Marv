@@ -10,6 +10,7 @@ import { voucherRouter } from '../modules/voucher/voucher.routes';
 import { paymentRouter } from '../modules/payment/payment.routes';
 import { NotificationRouter } from '../modules/notification/notification.route';
 import { dashboardRouter } from '../modules/dashboard/dashboard.routes';
+import { StaticPageRoutes } from '../modules/staticContent/static.route';
 
 export const router = Router();
 
@@ -57,6 +58,10 @@ const moduleRoutes = [
    {
     path: '/dashboard',
     route: dashboardRouter
+   }, 
+   {
+    path: '/static',
+    route: StaticPageRoutes
    }, 
 ];
 

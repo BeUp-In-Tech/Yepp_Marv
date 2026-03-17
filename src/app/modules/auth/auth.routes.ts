@@ -27,6 +27,10 @@ router.get(
   authController.googleCallback
 );
 
+// APPLE LOGIN
+router.post('/apple_login', authController.appleLogin);
+
+
 
 
 export const authRouter = router;

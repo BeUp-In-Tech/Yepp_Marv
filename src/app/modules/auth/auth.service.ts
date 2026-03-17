@@ -10,6 +10,10 @@ import env from '../../config/env';
 import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
 import { verifyToken } from '../../utils/jwt';
 import { createUserTokens } from '../../utils/user.tokens';
+import axios from 'axios';
+import qs from 'querystring';
+
+
 
 // CHANGE PASSWORD
 const changePasswordService = async (
@@ -209,10 +213,80 @@ const getNewAccessTokenService = async (refreshToken: string) => {
   };
 };
 
+
+
+
+// Apple client secret generator (JWT signed with Apple private key)
+const generateAppleClientSecret =  async ()=> {
+  const privateKey = env.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+  const clientSecret = jwt.sign(
+    {
+      iss: env.APPLE_TEAM_ID,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 15777000, // 6 months
+      aud: 'https://appleid.apple.com',
+      sub: env.APPLE_IOS_CLIENT_ID
+    },
+    privateKey,
+    { algorithm: 'ES256', keyid: env.APPLE_KEY_ID }
+  );
+  return clientSecret;
+}
+
+// Exchange code for tokens
+const  appleLoginService = async (code: string) => {
+  const clientSecret = await generateAppleClientSecret();
+
+  const tokenResponse = await axios.post(
+    'https://appleid.apple.com/auth/token',
+    qs.stringify({
+      grant_type: 'authorization_code',
+      code,
+      client_id: env.APPLE_IOS_CLIENT_ID,
+      client_secret: clientSecret,
+      redirect_uri: env.APPLE_WEB_REDIRECT_URI
+    }),
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  );
+
+  const { id_token, access_token } = tokenResponse.data;
+  
+  
+  // Decode Apple JWT
+  const decoded = jwt.decode(id_token);
+  console.log(decoded, access_token);
+
+
+  // response
+ /* {
+
+  iss: 'https://appleid.apple.com',
+  aud: 'agency.beuptech.yepp',
+  exp: 1773662563,
+  iat: 1773576163,
+  sub: '001452.2b850f37f0784c329308e5cee10e499a.0418',
+  at_hash: 'pcIwH0NtGLRLiWdq8pgHrg',
+  email: 'avizitrx@protonmail.com',
+  email_verified: true,
+  auth_time: 1773576162,
+  nonce_supported: true
+}
+*/
+  // Example: { sub: 'appleUserId', email: 'user@example.com', ... }
+  // const userCreate = await User.create(decoded);
+
+  // Create your own JWT
+  // const appToken = jwt.sign({ _id: userCreate._id }, env.JWT_ACCESS_SECRET, { expiresIn: '7d' });
+
+  // return { token: appToken, user: userCreate };
+  return decoded;
+}
+
 export const authService = {
   changePasswordService,
   forgetPasswordService,
   verifyForgetPasswordOTPService,
   resetPasswordService,
-  getNewAccessTokenService
+  getNewAccessTokenService,
+  appleLoginService
 };

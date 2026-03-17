@@ -5,13 +5,13 @@ import { CatchAsync } from '../../utils/CatchAsync';
 import passport from 'passport';
 import AppError from '../../errorHelpers/AppError';
 import httpStatus, { StatusCodes } from 'http-status-codes';
-import { SetCookies } from '../../utils/setCookie';
 import { createUserTokens } from '../../utils/user.tokens';
 import { JwtPayload } from 'jsonwebtoken';
 import env from '../../config/env';
 import { SendResponse } from '../../utils/SendResponse';
 import { authService } from './auth.service';
-import { clearGlobalAppDefaultCred } from 'firebase-admin/lib/app/credential-factory';
+
+
 
 // REGISTER WITH GOOGLE
 const googleRegister = CatchAsync(
@@ -43,10 +43,9 @@ const googleCallback = CatchAsync(
     const isAndroid = /android/i.test(userAgent);
     const isIOS = /iphone|ipad|ipod/i.test(userAgent);
 
-
     if (isAndroid || isIOS) {
       res.redirect(
-        `${env.DEEP_LINK}?access=${token.accessToken}&refresh=${token.refreshToken}`
+        `${env.DEEP_LINK}/auth/google?access=${token.accessToken}&refresh=${token.refreshToken}`
       );
     }
     
@@ -55,8 +54,27 @@ const googleCallback = CatchAsync(
         `${env.FRONTEND_URL}/shop-overview?access=${token.accessToken}&refresh=${token.refreshToken}`
       );
 
+    res.end();
   }
 );
+
+// APPLE LOGIN
+const appleLogin = CatchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { code } = req.body;
+    if (!code) {
+      throw new AppError(StatusCodes.BAD_REQUEST, 'Authorization code is required');
+    }
+
+    // console.log("Private key: ", env.APPLE_PRIVATE_KEY);    
+
+    const decoded = await authService.appleLoginService(code) as unknown as JwtPayload;
+    
+    
+    res.redirect(`${env.FRONTEND_URL}/shop-overview?access=${decoded.accessToken}&refresh=${decoded.refreshToken}`)
+  }
+);
+
 
 // CREDENTIAL LOGIN
 const credentialsLogin = CatchAsync(
@@ -170,4 +188,5 @@ export const authController = {
   verifyForgetPasswordOTP,
   resetPassword,
   getNewAccessToken,
+  appleLogin
 };
