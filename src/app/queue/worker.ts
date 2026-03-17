@@ -4,6 +4,7 @@ import env from '../config/env';
 import { notificationWorker } from './worker/notification.worker';
 import { emailSendWorker } from './worker/email_send.worker';
 import { dealHandleWorker } from './worker/deal.worker';
+import { bullkMailSender } from './worker/multiple_emails.worker';
 
 
 // RUN ALL WORKER JOB HERE WITH DATABASE CONNECTION
@@ -22,6 +23,9 @@ const connectQueeuDB = async () => {
     // EMAIL SEND WORKER
     emailSendWorker();
 
+    // BULLK MAIL SENDER
+    bullkMailSender();
+    
     // DEAL HANDLE WORKER
     dealHandleWorker();
 
