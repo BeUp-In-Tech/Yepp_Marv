@@ -82,6 +82,19 @@ const getRevenueTrend = CatchAsync(async (req: Request, res: Response, next: Nex
 });
 
 
+// 6. LAST ONE YEAR REVENUE TREND
+const getLatestTransaction = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const result = await dashboardServices.getLatestTransaction(req.query as Record<string, string>);
+
+    SendResponse(res,{
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Latest transaction fetched successfully",
+        data: result
+    });
+});
+
+
 
 // EXPORT ALL THE CONTROLLERS
 export const dashboardControllers = {
@@ -90,6 +103,7 @@ export const dashboardControllers = {
     dealsStats,
     dashboardAnalyticsTotal,
     getRevenueTrend,
-    vendorsStats
+    vendorsStats,
+    getLatestTransaction
 }
 

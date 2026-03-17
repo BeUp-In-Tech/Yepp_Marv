@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { Query } from 'mongoose';
 import { redisClient } from '../../config/redis.config';
 import { QueryBuilder } from '../../utils/QueryBuilder';
 import { DealModel } from '../deal/deal.model';
@@ -619,6 +620,50 @@ const getLastYearRevenueTrend = async () => {
   return final_data;
 };
 
+
+// 7. LATEST TRANSACTION
+const getLatestTransaction = async (query: Record<string, string>) => {
+
+  // MAKE CACHE KEY
+  const cacheKey = `latest_transaction:${query.join || ''}_${query.fields || ''}_${query.searchTerm || ''}_page_${query.page}_limit_${query.limit || ''}_sort_${query.sort || ''}`;
+
+  // GET REDIS STORED DATA AND RETURN CACHE DATA
+  const getCachedData = await redisClient.get(cacheKey);
+  if (getCachedData) {
+    return JSON.parse(getCachedData);
+  }
+
+
+  // DATABASE QUERY
+  const queryBuilder = new QueryBuilder(PaymentModel.find({
+    payment_status: PaymentStatus.PAID,
+  }), query);
+
+
+  const transactions = await queryBuilder.filter().search(['transaction_id']).select().join().sort().paginate().build();
+
+
+  const meta = await queryBuilder.getMeta();
+
+  const data = {
+    meta,
+    transactions,
+  };
+
+
+  // STORE DATA IN REDIS
+  await redisClient.set(cacheKey, JSON.stringify(data), {
+    EX: 600, // 10 min
+  });
+
+
+  return data;
+};
+
+
+
+
+
 // EXPORT ALL THE SERVICE LAYER
 export const dashboardServices = {
   dealsByCategoryStats,
@@ -627,4 +672,5 @@ export const dashboardServices = {
   dashboardAnalyticsTotal,
   getLastYearRevenueTrend,
   allVendorsStats,
+  getLatestTransaction
 };
