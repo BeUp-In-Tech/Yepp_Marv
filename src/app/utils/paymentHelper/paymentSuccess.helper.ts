@@ -10,6 +10,7 @@ import { StatusCodes } from "http-status-codes";
 import { DealModel } from "../../modules/deal/deal.model";
 import { redisClient } from "../../config/redis.config";
 import { scheduleDealJobs } from "../../queue/job/deal.job";
+import { invalidateAllMachineryCache } from "../deleteCachedData";
 
 
 export const paymentSuccessHandler = async (session: Stripe.Checkout.Session) => {
@@ -85,6 +86,7 @@ export const paymentSuccessHandler = async (session: Stripe.Checkout.Session) =>
             await redisClient.del(`shop:${deal.shop.toString()}`);
             await redisClient.del(`dashboard_analytics_total`); // dashboard analytics total
             await redisClient.del(`last_one_year_revenue_trend`); // last one year revenue trend (dahboard api)
+            await invalidateAllMachineryCache('all_vendors_dashboard:*'); // vendor stats cachec (dashboard)
           });
     
 }

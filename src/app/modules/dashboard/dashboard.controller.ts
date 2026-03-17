@@ -19,13 +19,13 @@ const dealsByCategoryStats = CatchAsync(async (req: Request, res: Response, next
 
 
 // 2. VENDORS STATS
-const recentVendorsStats = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const result = await dashboardServices.recentVendorsStats(req.query as Record<string, string>);
+const vendorsStats = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const result = await dashboardServices.allVendorsStats(req.query as Record<string, string>);
 
     SendResponse(res,{
         success: true,
         statusCode: StatusCodes.OK,
-        message: "Recent vendors statistics fetched successfully",
+        message: "Vendors statistics fetched successfully",
         data: result
     });
 });
@@ -86,10 +86,10 @@ const getRevenueTrend = CatchAsync(async (req: Request, res: Response, next: Nex
 // EXPORT ALL THE CONTROLLERS
 export const dashboardControllers = {
     dealsByCategoryStats,
-    recentVendorsStats,
     recentDealsStats,
     dealsStats,
     dashboardAnalyticsTotal,
-    getRevenueTrend
+    getRevenueTrend,
+    vendorsStats
 }
 

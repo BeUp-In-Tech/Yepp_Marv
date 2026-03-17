@@ -10,6 +10,7 @@ import { Types } from 'mongoose';
 import { removeTokenFromOtherUsers } from '../../utils/removeToken';
 import { Shop } from '../shop/shop.model';
 import { createUserTokens } from '../../utils/user.tokens';
+import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
 
 // 1. CREATE VENDOR SERVICE
 const registerUserService = async (payload: IUser) => {
@@ -85,6 +86,10 @@ const updateUserService = async (user: JwtPayload, payload: Partial<IUser>) => {
 
   // INVALID OR CLEAR OLD DATA WHEN USER UPDATE HIS DATA
   redisClient.del(`user_me:${update?._id}`);
+
+  if (payload.user_name) {
+    await invalidateAllMachineryCache('all_vendors_dashboard:*');
+  }
 
   // RETURN UPDATED DATA
   return update;

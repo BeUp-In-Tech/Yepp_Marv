@@ -109,7 +109,7 @@ const createShopService = async (
 
     
     // REMOVE CACHE (DASHBOARD API CHACHE)
-    await invalidateAllMachineryCache('recent_vendors:*');
+    await invalidateAllMachineryCache('all_vendors_dashboard:*'); // recent vendors stats
 
     
     // SESSION END
@@ -410,8 +410,9 @@ const updateShopService = async (
   // REMOVE ALL CACHE KEY WHEN UPDATE
   await redisClient.del(`shop:${userId}`);
   await redisClient.del(`shop:${shopId}`);
-  await invalidateAllMachineryCache("recent_vendors:");
   await redisClient.del(`dashboard_analytics_total`); // dashboard analytics total
+  await invalidateAllMachineryCache("recent_vendors:"); // dashboard recent vendor stat
+  await invalidateAllMachineryCache('all_vendors_dashboard:*'); // dashboard vendors stat
 
   return updatedShop;
 };

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { redisClient } from '../../config/redis.config';
 import { QueryBuilder } from '../../utils/QueryBuilder';
 import { DealModel } from '../deal/deal.model';
@@ -72,44 +73,173 @@ const dealsByCategoryStats = async () => {
   return data;
 };
 
-// 2. VENDORS STATS
-const recentVendorsStats = async (query: Record<string, string>) => {
-  const fields = query.fields ? query.fields : '';
-  const page = query.page ? query.page : 1;
-  const limit = query.limit ? query.limit : 10;
-  const sort = query.sort ? query.sort : '-createdAt';
-  const approval = query.shop_approval || '';
 
-  const cacheKey = `recent_vendors:${fields}_${approval}_${page}_${limit}_${sort}`;
+// 2. VENDORS STATS
+const allVendorsStats = async (query: Record<string, string>) => {
+  const searchTerm = query.searchTerm || '';
+  const approval = query.shop_approval || '';
+  const sort = query.sort || '-totalDeals';
+
+  const page = query.page ? Number(query.page) : 1;
+  const limit = query.limit ? Number(query.limit) : 10;
+  const skip = (page - 1) * limit;
+
+  // Dynamic sort
+  const sortObj: Record<string, 1 | -1> = {};
+  const field = sort.startsWith('-') ? sort.substring(1) : sort;
+  const order = sort.startsWith('-') ? -1 : 1;
+  sortObj[field] = order;
+
+
+  // MAKE REDIS KEY
+  const cacheKey = `all_vendors_dashboard:${approval}_${searchTerm}_${page}_${limit}_${sort}`;
   const getCachedData = await redisClient.get(cacheKey);
 
+  // RETURN CACHED DATA
   if (getCachedData) {
     return JSON.parse(getCachedData);
   }
 
+ 
+  const pipeline: any[] = [];
 
-  const queryBuilder = new QueryBuilder(Shop.find(), query);
+  // STAGE 0: APPROVAL FILTER (early = faster)
+  if (approval) {
+    pipeline.push({
+      $match: {
+        shop_approval: approval,
+      },
+    });
+  }
 
-  const vendors = await queryBuilder
-    .filter()
-    .select()
-    .sort()
-    .paginate()
-    .build();
-  const meta = await queryBuilder.getMeta();
+  pipeline.push(
+    // STAGE 1: DEALS JOIN
+    {
+      $lookup: {
+        from: 'deals',
+        localField: '_id',
+        foreignField: 'shop',
+        as: 'deals',
+      },
+    },
 
-  const data = {
-    meta,
-    vendors,
-  };
+    // STAGE 2
+    {
+      $addFields: {
+        totalDeals: { $size: '$deals' },
+      },
+    },
+
+    // STAGE 3: USER JOIN
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'vendor',
+        foreignField: '_id',
+        as: 'vendor',
+        pipeline: [
+          {
+            $project: { user_name: 1 },
+          },
+        ],
+      },
+    },
+
+    { $unwind: '$vendor' }
+  );
+
+  // SEARCH (optional)
+  if (searchTerm) {
+    pipeline.push({
+      $match: {
+        $or: [
+          {
+            business_name: { $regex: searchTerm, $options: 'i' },
+          },
+          {
+            'vendor.user_name': {
+              $regex: searchTerm,
+              $options: 'i',
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  pipeline.push(
+    // STAGE: REVENUE
+    {
+      $lookup: {
+        from: 'payments',
+        let: { userId: '$vendor._id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$user', '$$userId'] },
+                  { $eq: ['$payment_status', 'PAID'] },
+                ],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: '$amount' },
+            },
+          },
+        ],
+        as: 'revenue',
+      },
+    },
+
+    {
+      $unwind: {
+        path: '$revenue',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+
+    {
+      $addFields: {
+        totalRevenue: { $ifNull: ['$revenue.totalRevenue', 0] },
+      },
+    },
+
+    // FINAL PROJECTION
+    {
+      $project: {
+        _id: 1,
+        business_name: 1,
+        totalRevenue: 1,
+        vendor: 1,
+        business_email: 1,
+        shop_approval: 1,
+        totalDeals: 1,
+        createdAt: 1,
+      },
+    },
+
+    // ✅ DYNAMIC SORT
+    { $sort: sortObj },
+
+    { $skip: skip },
+    { $limit: limit }
+  );
+
+  const vendorsStats = await Shop.aggregate(pipeline);
+
 
   // STORE DATA IN REDIS
-  await redisClient.set(cacheKey, JSON.stringify(data), {
+  await redisClient.set(cacheKey, JSON.stringify(vendorsStats), {
     EX: 3600, // 1 hour
   });
 
   // Return data
-  return data;
+
+  return vendorsStats;
 };
 
 // 3. RECENT DEALS STATS
@@ -163,23 +293,19 @@ const dealsStats = async (query: Record<string, string>) => {
   const sortBy = (query.sortBy as string) || 'createdAt';
   const sortOrder = query.sortOrder === 'asc' ? 1 : -1;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sortStage: any = {};
   sortStage[sortBy] = sortOrder;
 
   const cacheKey = `deals_stats:${query.searchTerm || ''}_${page}_${limit}_${sortBy}_${sortOrder}`;
   const getCachedData = await redisClient.get(cacheKey);
 
-
   // RETURN CACHE DATA
   if (getCachedData) {
     return JSON.parse(getCachedData);
   }
 
-
   // DATABASE QUERY
   const result = await DealModel.aggregate([
-    
     // STAGE 1: JOIN WITH VIEW IMPRESSION
     {
       $lookup: {
@@ -210,7 +336,6 @@ const dealsStats = async (query: Record<string, string>) => {
         as: 'analytics',
       },
     },
-
 
     // STAGE 2: JOIN WITH SHOP
     {
@@ -247,15 +372,25 @@ const dealsStats = async (query: Record<string, string>) => {
     },
 
     {
-  $match: {
-    $or: [
-      { title: { $regex: query.searchTerm || '', $options: 'i' } },
-      { tags: { $regex: query.searchTerm || '', $options: 'i' } },
-      { 'shop.business_name': { $regex: query.searchTerm || '', $options: 'i' } },
-      { 'category.category_name': { $regex: query.searchTerm || '', $options: 'i' } }
-    ]
-  }
-},
+      $match: {
+        $or: [
+          { title: { $regex: query.searchTerm || '', $options: 'i' } },
+          { tags: { $regex: query.searchTerm || '', $options: 'i' } },
+          {
+            'shop.business_name': {
+              $regex: query.searchTerm || '',
+              $options: 'i',
+            },
+          },
+          {
+            'category.category_name': {
+              $regex: query.searchTerm || '',
+              $options: 'i',
+            },
+          },
+        ],
+      },
+    },
     {
       $facet: {
         summary: [
@@ -293,7 +428,6 @@ const dealsStats = async (query: Record<string, string>) => {
         ],
       },
     },
-
   ]);
 
   const data = result[0];
@@ -312,8 +446,6 @@ const dealsStats = async (query: Record<string, string>) => {
     data,
   };
 
-  
-
   //   // STORE DATA IN REDIS
   await redisClient.set(cacheKey, JSON.stringify(final_data), {
     EX: 60, // 1 min
@@ -326,51 +458,46 @@ const dealsStats = async (query: Record<string, string>) => {
 
 // 5. DASHBOARD ANALYTICS TOTAL
 const dashboardAnalyticsTotal = async () => {
+  const cacheKey = `dashboard_analytics_total`;
+  const getCachedData = await redisClient.get(cacheKey);
 
-    const cacheKey = `dashboard_analytics_total`;
-    const getCachedData = await redisClient.get(cacheKey);
-  
-    // RETURN CACHED DATA
-    if (getCachedData) {
-      return JSON.parse(getCachedData);
-    }
+  // RETURN CACHED DATA
+  if (getCachedData) {
+    return JSON.parse(getCachedData);
+  }
 
-
-  const now = new Date()
+  const now = new Date();
 
   // LAST 30 DAYS
-  const last30Days = new Date()
-  last30Days.setDate(now.getDate() - 30)
+  const last30Days = new Date();
+  last30Days.setDate(now.getDate() - 30);
 
   const [vendors, active_deals, revenue] = await Promise.all([
-
     // ACTIVE VENDORS
     Shop.countDocuments({
-      shop_approval: ShopApproval.APPROVED
+      shop_approval: ShopApproval.APPROVED,
     }),
 
     // ACTIVE DEALS
     DealModel.countDocuments({
-      promotedUntil: { $gt: now }
+      promotedUntil: { $gt: now },
     }),
 
     // LIFETIME REVENUE
     PaymentModel.aggregate([
       {
         $match: {
-          payment_status: PaymentStatus.PAID
-        }
+          payment_status: PaymentStatus.PAID,
+        },
       },
       {
         $group: {
           _id: null,
-          lifetimeRevenue: { $sum: "$amount" }
-        }
-      }
-    ])
-
-  ])
-
+          lifetimeRevenue: { $sum: '$amount' },
+        },
+      },
+    ]),
+  ]);
 
   // LAST 30 DAYS REVENUE
   const last30DaysRevenue = await PaymentModel.aggregate([
@@ -379,46 +506,42 @@ const dashboardAnalyticsTotal = async () => {
         payment_status: PaymentStatus.PAID,
         createdAt: {
           $gte: last30Days,
-          $lte: now
-        }
-      }
+          $lte: now,
+        },
+      },
     },
     {
       $group: {
         _id: null,
-        total: { $sum: "$amount" }
-      }
-    }
-  ])
-
+        total: { $sum: '$amount' },
+      },
+    },
+  ]);
 
   const final_data = {
     active_vendors: vendors,
     active_deals,
     total_revenue: revenue[0]?.lifetimeRevenue || 0,
-    last30Days_Revenue: last30DaysRevenue[0]?.total || 0
-  }
-
+    last30Days_Revenue: last30DaysRevenue[0]?.total || 0,
+  };
 
   // STORE DATA IN REDIS
   await redisClient.set(cacheKey, JSON.stringify(final_data), {
     EX: 3600, // 1 hour
-    });
-  
+  });
+
   // Return data
-  return final_data
-}
+  return final_data;
+};
 
 // 6. LAST ONE YEAR REVENUE TREND
 const getLastYearRevenueTrend = async () => {
+  const cacheKey = `last_one_year_revenue_trend`;
+  const getCachedData = await redisClient.get(cacheKey);
 
-    const cacheKey = `last_one_year_revenue_trend`;
-    const getCachedData = await redisClient.get(cacheKey);
-
-    if (getCachedData) {
-      return JSON.parse(getCachedData);
-    }
-
+  if (getCachedData) {
+    return JSON.parse(getCachedData);
+  }
 
   const now = new Date();
 
@@ -432,24 +555,34 @@ const getLastYearRevenueTrend = async () => {
         payment_status: PaymentStatus.PAID,
         createdAt: {
           $gte: startDate,
-          $lte: now
-        }
-      }
+          $lte: now,
+        },
+      },
     },
     {
       $group: {
         _id: {
-          year: { $year: "$createdAt" },
-          month: { $month: "$createdAt" }
+          year: { $year: '$createdAt' },
+          month: { $month: '$createdAt' },
         },
-        revenue: { $sum: "$amount" }
-      }
-    }
+        revenue: { $sum: '$amount' },
+      },
+    },
   ]);
 
   const monthNames = [
-    "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec"
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   // convert aggregation result to map
@@ -462,7 +595,6 @@ const getLastYearRevenueTrend = async () => {
   const finalTrend = [];
 
   for (let i = 11; i >= 0; i--) {
-
     const d = new Date();
     d.setMonth(now.getMonth() - i);
 
@@ -473,7 +605,7 @@ const getLastYearRevenueTrend = async () => {
 
     finalTrend.push({
       month: monthNames[month - 1],
-      revenue: revenueMap[key] || 0
+      revenue: revenueMap[key] || 0,
     });
   }
 
@@ -483,7 +615,6 @@ const getLastYearRevenueTrend = async () => {
   await redisClient.set(cacheKey, JSON.stringify(final_data), {
     EX: 600, // 10 min
   });
-  
 
   return final_data;
 };
@@ -491,9 +622,9 @@ const getLastYearRevenueTrend = async () => {
 // EXPORT ALL THE SERVICE LAYER
 export const dashboardServices = {
   dealsByCategoryStats,
-  recentVendorsStats,
   recentDealsStats,
   dealsStats,
   dashboardAnalyticsTotal,
-  getLastYearRevenueTrend
+  getLastYearRevenueTrend,
+  allVendorsStats,
 };
