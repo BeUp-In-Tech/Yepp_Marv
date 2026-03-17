@@ -17,6 +17,7 @@ export interface IPayment {
     _id?: Types.ObjectId;
     user: Types.ObjectId;
     deal: Types.ObjectId;
+    plan?: Types.ObjectId;
     promotion?: Types.ObjectId;
     transaction_id: string;
     amount: number;

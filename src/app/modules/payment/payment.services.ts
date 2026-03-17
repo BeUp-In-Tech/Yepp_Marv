@@ -125,6 +125,7 @@ const stripePay = async (
           _id: payment_id,
           user: userId,
           deal: deal._id,
+          plan: plan._id,
           promotion: promotion[0]._id,
           transaction_id: generateTransactionId(),
           amount: final_price,

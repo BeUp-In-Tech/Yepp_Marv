@@ -5,17 +5,22 @@ const PaymentSchema = new Schema<IPayment>(
   {
     deal: {
       type: Schema.Types.ObjectId,
-      ref: 'Service',
+      ref: 'deal',
       required: true
     },
     user: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'user',
       required: true 
     },
     promotion: {
       type: Schema.Types.ObjectId,
-      ref: 'Promotion',
+      ref: 'promotion',
+      required: false
+    },
+    plan: {
+      type: Schema.Types.ObjectId,
+      ref: 'plan',
       required: false
     },
     transaction_id: {
