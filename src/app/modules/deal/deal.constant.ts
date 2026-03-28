@@ -6,5 +6,6 @@ export const excludeField = [
   'fields',
   'join',
   'nearby',
-  'category'
+  'category',
+  'deal_filter'
 ];

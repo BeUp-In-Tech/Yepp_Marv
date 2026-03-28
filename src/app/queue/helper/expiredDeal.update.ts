@@ -47,9 +47,14 @@ export const dealExpireHandle = async (dealId: string) => {
 
 
     // CLEAR CHACHE
+   setImmediate(async () => {
     await redisClient.del(`shop:${dealUpdate.user.toString()}`);
     await redisClient.del(`shop:${dealUpdate.shop.toString()}`);
     await invalidateAllMachineryCache("machinery:*");
+    await invalidateAllMachineryCache(`my_deals-userId:${dealUpdate.user.toString()}:*`);// get my deals cache invalidate (deal.service.ts)
+   })
+
+
   } catch (error: any) {
     console.log(`Deal expire handle problem: `, error.message);
   }

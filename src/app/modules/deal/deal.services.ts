@@ -21,6 +21,8 @@ import { redisClient } from '../../config/redis.config';
 import { Views_Impressions } from '../views_impression/vi.model';
 import { generateCacheKey } from '../../utils/checheKeyGen';
 import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
+import crypto from 'crypto';
+import { sortObject } from '../../utils/sortObject';
 
 // 1. CREATE SERVICE
 const createDealsService = async (params: {
@@ -152,12 +154,11 @@ const createDealsService = async (params: {
   };
   const doc = await DealModel.create(finalPayload);
 
-
-
   // REMOVE CACHE (DASHBOARD API CHACHE)
   redisClient.del('deals_by_category_stats');
-  await invalidateAllMachineryCache("recent_deals:*");
-  await invalidateAllMachineryCache("deals_stats:*");
+  await invalidateAllMachineryCache('recent_deals:*');
+  await invalidateAllMachineryCache('deals_stats:*');
+  await invalidateAllMachineryCache(`my_deals-userId:${user.userId}:*`);
 
   return doc;
 };
@@ -569,11 +570,15 @@ const updateDealsService = async (
   });
 
   // REMOVE REDIS CACHE KEY
-  redisClient.del(`shop:${updatedService?.shop.toString()}`);
-  await invalidateAllMachineryCache("machinery:*");
-  await invalidateAllMachineryCache("recent_deals:*");
-  await invalidateAllMachineryCache("deals_stats:*");
+  setImmediate(async () => {
+    await redisClient.del(`shop:${updatedService?.shop.toString()}`);
+    await invalidateAllMachineryCache('machinery:*');
+    await invalidateAllMachineryCache('recent_deals:*');
+    await invalidateAllMachineryCache('deals_stats:*');
+    await invalidateAllMachineryCache(`my_deals-userId:${user.userId}:*`);
+  });
 
+  // RETURN DATA
   return updatedService;
 };
 
@@ -582,26 +587,86 @@ const getMyDealsService = async (
   userId: string,
   query: Record<string, string>
 ) => {
-  const queryBuilder = new QueryBuilder(
-    DealModel.find({ user: userId }),
-    query
-  );
+  const page = query.page ? Number(query.page) : 1;
+  const limit = query.limit ? Number(query.limit) : 10;
+
+  // DYNAMIC FILTERING
+  const filter: Record<string, any> = { user: userId };
+  switch (query.deal_filter) {
+    case 'promoted':
+      filter.isPromoted = true;
+      filter.promotedUntil = { $gte: new Date() };
+      break;
+    case 'expired':
+      filter.promotedUntil = { $lt: new Date() };
+      filter.isPromoted = false;
+      filter.activePromotion = { $ne: null };
+      break;
+    case 'new':
+      filter.activePromotion = null;
+      break;
+    default:
+      break;
+  }
+
+  // QUERY WITH DEFAULTS
+  const queryWithDefaults = { page, limit, ...query };
+
+  // SORT OBJECT
+  const sortedParams = sortObject(queryWithDefaults);
+
+  // CREATE A SHORT HASH
+  const queryHash = crypto
+    .createHash('md5')
+    .update(JSON.stringify(sortedParams))
+    .digest('hex');
+
+  // GENERATE HASH KEY
+  const cacheKey = `my_deals-userId:${userId}:${queryHash}`;
+
+  // CHECK CACHE
+  const getCachedData = await redisClient.get(cacheKey);
+  if (getCachedData) {
+    console.log('Redis response');
+
+    return JSON.parse(getCachedData);
+  }
+
+  console.log('DB response');
+
+  // QUERY BUILDER
+  const queryBuilder = new QueryBuilder(DealModel.find(filter), query);
   const deals = await queryBuilder
     .filter()
     .select()
     .search(['title', 'description'])
-    .sort()
     .select()
     .sort()
     .join()
     .paginate()
     .build();
-  const meta = await queryBuilder.getMeta();
 
-  return {
+  // CALCULATE META INFO
+  const totalDocuments = await DealModel.countDocuments(filter);
+  const meta = {
+    page,
+    limit,
+    total: totalDocuments,
+    totalPages: Math.ceil(totalDocuments / limit),
+  };
+
+  const data = {
     meta,
     deals,
   };
+
+  // SAVE TO REDIS
+  await redisClient.set(cacheKey, JSON.stringify(data), {
+    EX: 600, // 10 min
+  });
+
+  // RETURN DATA
+  return data;
 };
 
 // 6. GET DEALS BY CATEGORY
@@ -754,10 +819,9 @@ const getNearestDealsService = async (
   // STEP 1: GENERATE CACHE KEY
   if (query.category) filter.category = query.category;
   if (query.brand) filter.brand = query.brand;
- 
 
   const cacheKey = generateCacheKey({
-    searchTerm, 
+    searchTerm,
     filter,
     page: Number(query.page) || 1,
     limit: Number(query.limit) || 10,
@@ -772,7 +836,6 @@ const getNearestDealsService = async (
   if (cachedData) {
     return JSON.parse(cachedData);
   }
-
 
   // DATABASE QUERY
   const pipeline: PipelineStage[] = [
@@ -924,7 +987,6 @@ const getNearestDealsService = async (
     EX: 600,
   });
 
-
   return data;
 };
 
@@ -1014,12 +1076,12 @@ const getAllDealsService = async (
     // STAGE 6: PREVENT DUPLICATE RESULT FOR DISTANCE, KEEP ONLY NEAREST RESULT
     {
       $group: {
-        _id: '$deal._id',  
-        doc: { $first: '$$ROOT' },  
+        _id: '$deal._id',
+        doc: { $first: '$$ROOT' },
       },
     },
     {
-      $replaceRoot: { newRoot: '$doc' },  
+      $replaceRoot: { newRoot: '$doc' },
     },
 
     // STAGE 6: FINAL PROJECTION

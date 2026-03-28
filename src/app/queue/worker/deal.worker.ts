@@ -23,7 +23,6 @@ export const dealHandleWorker = () => {
       try {
         switch (job.name) {
             case JobName.DEAL_REMINDER_DAY :
-                console.log("cleanup triggered");
                 await oneDayReminder(job.data.dealId);
                 break;
             case JobName.DEAL_REMINDER_HOUR :
