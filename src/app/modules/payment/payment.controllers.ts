@@ -10,9 +10,9 @@ import { JwtPayload } from 'jsonwebtoken';
 // STRIPE CHECKOUT
 const stripePayment = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
-    const {serviceId, planId, voucher} = req.body;
+    const {dealId, planId, voucher} = req.body;
     
-    const result = await paymentService.stripePay(user, serviceId, planId, voucher);
+    const result = await paymentService.stripePay(user, dealId, planId, voucher);
     SendResponse(res, {
         success: true,
         statusCode: StatusCodes.CREATED,
