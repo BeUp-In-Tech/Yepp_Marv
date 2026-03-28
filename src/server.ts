@@ -1,22 +1,25 @@
 /* eslint-disable no-console */
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import server from './app';
 import envVars from './app/config/env';
 import { connectRedis } from './app/config/redis.config';
 import { createAdmin } from './app/utils/seedAdmin';
+import app from './app';
+import { Server } from 'http';
 
 
 dotenv.config();
 
 const PORT = envVars.PORT || 3002;
 
+let server: Server
+
 const startServer = async () => {
   try {
     await mongoose.connect(envVars.MONGO_URI);
     console.log(`Database connceted`);
 
-    server.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       console.log(`Server started on http://localhost:${PORT}`);
     });
   } catch (error) {
@@ -25,13 +28,12 @@ const startServer = async () => {
 };
 
 
-// Booom and start the server
+// BOOM START THE SERVER
 (async () => {
   await connectRedis();
   await startServer();
   await createAdmin();
 })();
-
 
 
 

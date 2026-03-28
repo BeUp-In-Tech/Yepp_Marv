@@ -627,12 +627,10 @@ const getMyDealsService = async (
   // CHECK CACHE
   const getCachedData = await redisClient.get(cacheKey);
   if (getCachedData) {
-    console.log('Redis response');
-
     return JSON.parse(getCachedData);
   }
 
-  console.log('DB response');
+
 
   // QUERY BUILDER
   const queryBuilder = new QueryBuilder(DealModel.find(filter), query);
