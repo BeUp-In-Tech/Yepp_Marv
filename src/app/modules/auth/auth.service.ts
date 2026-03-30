@@ -168,7 +168,7 @@ const resetPasswordService = async (token: string, newPassword: string) => {
   return null;
 };
 
-// GET NEW ACCESS TOKEN
+
 // GET NEW ACCESS TOKEN
 const getNewAccessTokenService = async (refreshToken: string) => {
   if (!refreshToken) {
@@ -254,6 +254,7 @@ const  appleLoginService = async (code: string) => {
   
   // Decode Apple JWT
   const decoded = jwt.decode(id_token);
+  // eslint-disable-next-line no-console
   console.log(decoded, access_token);
 
 
