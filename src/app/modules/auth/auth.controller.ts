@@ -62,9 +62,7 @@ const appleLogin = CatchAsync(
     if (!code) {
       throw new AppError(StatusCodes.BAD_REQUEST, 'Authorization code is required');
     }
-
-    // console.log("Private key: ", env.APPLE_PRIVATE_KEY);    
-
+  
     const decoded = await authService.appleLoginService(code) as unknown as JwtPayload;
     
     
