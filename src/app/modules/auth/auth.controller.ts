@@ -47,14 +47,11 @@ const googleCallback = CatchAsync(
       res.redirect(
         `${env.DEEP_LINK}/auth/google?access=${token.accessToken}&refresh=${token.refreshToken}`
       );
-    }
-    
-
-    res.redirect(
+    }else {
+      res.redirect(
         `${env.FRONTEND_URL}/shop-overview?access=${token.accessToken}&refresh=${token.refreshToken}`
       );
-
-    res.end();
+    }
   }
 );
 
