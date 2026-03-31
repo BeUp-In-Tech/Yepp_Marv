@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "@types/passport-google-oauth20": "^2.0.17",
-    "axios": "^1.13.6",
+    "axios": "^1.14.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.70.4",
     "cloudinary": "^1.41.3",
