@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import mongoose, { Schema } from 'mongoose';
 import { IDeal } from './deal.interface';
-import { asynMultipleImageDelete } from '../../utils/singleImageDeleteAsync';
+import { asynMultipleImageDelete, asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 
 const dealSchema = new Schema<IDeal>(
   {
@@ -104,12 +104,20 @@ const dealSchema = new Schema<IDeal>(
 
 // IF ANY DUPLICATE ERROR DELETE IMAGES FROM STORAGE
 dealSchema.post('save', async function (error: any, doc: IDeal, next: any) {
-  if (error.code === 11000) {
-    await asynMultipleImageDelete(doc.images);
-    next(error);
-  } else {
-    next(error);
+  if (error?.code === 11000 || error?.name === "ValidationError") {
+    try {
+      await Promise.all([
+        doc?.images?.length ? asynMultipleImageDelete(doc.images) : null,
+        doc?.coupon_option?.qr ? asynSingleImageDelete(doc.coupon_option.qr) : null,
+        doc?.coupon_option?.upc ? asynSingleImageDelete(doc.coupon_option.upc) : null,
+      ]);
+    } catch (cleanupError) {
+      // eslint-disable-next-line no-console
+      console.error("Cloudinary cleanup failed:", cleanupError);
+    }
   }
+
+  next(error);
 });
 
 // Indexes you’ll use often
