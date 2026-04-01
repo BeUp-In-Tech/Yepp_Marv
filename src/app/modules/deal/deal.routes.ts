@@ -37,10 +37,10 @@ router.get('/deals/all_deals/:lng/:lat', dealsControllers.getAllDeals);
 // GET NEARESST DEALS
 router.get('/deals/:lng/:lat', dealsControllers.getNearestDeals);
 
-// GET MY SERVICE
+// GET MY DEAL
 router.get('/my_deals', checkAuth(Role.VENDOR), dealsControllers.getMyDeals);
 
-// GET USERS SAVED DEALS
+// GET USERS SAVED DEAL
 router.get('/saved', dealsControllers.getDealsByIds);
 
 // GET SINGLE DEALS
@@ -49,22 +49,22 @@ router.get(
   dealsControllers.getSingleDeals
 );
 
-// GET DEALS BY CATEGORY
+// GET DEALS BY DEAL
 router.get(
   '/c/:categoryId',
   dealsControllers.getDealsByCategory
 );
 
-// DELETE SERVICE
+// DELETE DEAL
 router.delete(
-  '/:serviceId',
+  '/:dealId',
   checkAuth(Role.VENDOR),
   dealsControllers.deleteDeals
 );
 
-// UPDATE SERVICE
+// UPDATE DEAL
 router.patch(
-  '/:serviceId',
+  '/:dealId',
   checkAuth(Role.VENDOR),
   uploadMulter.fields([
     { name: 'files', maxCount: 10 },

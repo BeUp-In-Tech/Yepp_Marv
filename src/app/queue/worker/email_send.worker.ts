@@ -9,7 +9,7 @@ export const emailSendWorker = async () => {
     'emailSendQueue',
     async (job) => {
       try {
-        sendEmail(job.data);
+        await sendEmail(job.data);
         console.log('Email sent');
       } catch (error: any) {
         console.log('Email sending error from bullmq: ', error.message);

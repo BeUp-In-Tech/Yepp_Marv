@@ -49,7 +49,7 @@ const getSingleDeals = CatchAsync(async (req: Request, res: Response, next: Next
 // DELETE SHOP
 const deleteDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
-    const serviceId = req.params.serviceId as string;
+    const serviceId = req.params.dealId as string;
 
     const result = await dealsServices.deleteDealsService( user, serviceId );
 
@@ -64,7 +64,7 @@ const deleteDeals = CatchAsync(async (req: Request, res: Response, next: NextFun
 // DELETE SHOP
 const updateSingleDeals = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
-    const serviceId = req.params.serviceId as string;
+    const serviceId = req.params.dealId as string;
     
     const result = await dealsServices.updateDealsService( user, serviceId, req.body);
 
