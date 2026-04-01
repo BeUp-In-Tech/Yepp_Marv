@@ -677,6 +677,7 @@ const getDealsByCategoryService = async (
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 20;
   const skip = (page - 1) * limit;
+  const categoryObjectId = new mongoose.Types.ObjectId(categoryId);
 
   // Build the sort object.
   const sort: Record<string, 1 | -1> = {};
@@ -729,7 +730,7 @@ const getDealsByCategoryService = async (
 
     {
       $match: {
-        'deal.category': new mongoose.Types.ObjectId(categoryId),
+        'deal.category': categoryObjectId,
       },
     },
     // Only promoted deals
@@ -749,8 +750,23 @@ const getDealsByCategoryService = async (
       },
     },
     { $unwind: '$shop' },
-    // Sort by distance
+
+    // Keep the nearest outlet copy first so duplicate deals collapse correctly.
+    { $sort: { distance: 1 } },
+
+    // Remove duplicate deals coming from multiple outlets.
+    {
+      $group: {
+        _id: '$deal._id',
+        doc: { $first: '$$ROOT' },
+      },
+    },
+
+    { $replaceRoot: { newRoot: '$doc' } },
+
+    // Apply requested ordering on the deduplicated deal list.
     { $sort: sort },
+
     // Project needed fields
     {
       $project: {
@@ -775,7 +791,7 @@ const getDealsByCategoryService = async (
 
   // Total promoted deals count
   const total = await DealModel.countDocuments({
-    category: new mongoose.Types.ObjectId(categoryId),
+    category: categoryObjectId,
     isPromoted: true,
     promotedUntil: { $gte: new Date() },
   });
