@@ -84,6 +84,7 @@ export const paymentSuccessHandler = async (
       await redisClient.del(`shop:${deal.shop.toString()}`);
       await redisClient.del(`dashboard_analytics_total`); // dashboard analytics total cache invalidate
       await redisClient.del(`last_one_year_revenue_trend`); // last one year revenue trend cached invalidate (dahboard api)
+      await invalidateAllMachineryCache('machinery:all:*'); // vendor stats cache invalidate (dashboard)
       await invalidateAllMachineryCache('all_vendors_dashboard:*'); // vendor stats cache invalidate (dashboard)
       await invalidateAllMachineryCache('latest_transaction:*'); // latest transaction list cache invalidate (dashboard)
       await invalidateAllMachineryCache(
