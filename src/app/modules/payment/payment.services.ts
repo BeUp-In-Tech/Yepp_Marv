@@ -172,8 +172,8 @@ const stripePay = async (
       voucher_id: voucher_payload.voucher_id?.toString() ?? '',
       voucher_code: voucher_payload.voucher ?? '',
     },
-    success_url: `${env.FRONTEND_URL}/payment_success`,
-    cancel_url: `${env.FRONTEND_URL}/payment_cancel`,
+    success_url: `${env.FRONTEND_URL}/payment_success?tr_id=${payment[0].transaction_id}&deal_id=${dealId.toString()}`,
+    cancel_url: `${env.FRONTEND_URL}/payment_cancel?tr_id=${payment[0].transaction_id}&deal_id=${dealId.toString()}`,
   } as Stripe.Checkout.SessionCreateParams;
 
   const idempotencyKey = {
