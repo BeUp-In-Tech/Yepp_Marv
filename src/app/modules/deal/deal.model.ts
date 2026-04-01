@@ -117,7 +117,7 @@ dealSchema.post('save', async function (error: any, doc: IDeal, next: any) {
     }
   }
 
-  next(error);
+  next();
 });
 
 // Indexes you’ll use often
