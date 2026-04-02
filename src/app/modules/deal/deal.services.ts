@@ -339,6 +339,13 @@ const deleteDealsService = async (user: JwtPayload, serviceId: string) => {
     }
   });
 
+  setImmediate(async () => {
+    await invalidateAllMachineryCache('machinery:*');
+    await invalidateAllMachineryCache('recent_deals:*');
+    await invalidateAllMachineryCache('deals_stats:*');
+    await invalidateAllMachineryCache(`my_deals-userId:${user.userId}:*`);
+  });
+
   return null;
 };
 
