@@ -325,15 +325,7 @@ const deleteDealsService = async (user: JwtPayload, serviceId: string) => {
     );
   }
 
-  const deleteService = await DealModel.deleteOne({ _id: serviceId });
-
-  if (deleteService.deletedCount > 0) {
-    /*
-   ========================================================================
-    DELETE EXTERNAL DATA FROM OTHERS COLLECTION BY THIS ID
-   ========================================================================
-   */
-  }
+  await DealModel.deleteOne({ _id: serviceId });
 
   // 6. Delete images asynchronously using promises
   setImmediate(async () => {
@@ -488,6 +480,24 @@ const updateDealsService = async (
     );
   }
 
+  // TAGS UPDATE HANDLING
+  let updatedTags: string[] = [...deal.tags]; // start with existing tags
+
+  if (payload.tags && payload.tags.length > 0) {
+    const newTags = Array.isArray(payload.tags)
+      ? payload.tags.map((t: string) => t.trim())
+      : [(payload.tags as string).trim()]; // Single value becomes array
+
+    updatedTags = [...new Set([...updatedTags, ...newTags])];
+  }
+
+  if (payload.deletedTags && payload.deletedTags.length > 0) {
+    updatedTags = updatedTags.filter(
+      (tag: string) =>
+        !(payload.deletedTags as string[]).includes(tag)
+    );
+  }
+
   // BUILD THE UPDATE PAYLOAD
   const updateData: any = {};
 
@@ -511,6 +521,21 @@ const updateDealsService = async (
     !updatedHighlights.every((val, index) => val === deal.highlight[index])
   ) {
     updateData.highlight = updatedHighlights;
+  }
+
+
+  // ONLY UPDATE TAGS IF CHANGES WERE MADE
+  if (
+    updatedTags.length !== deal.tags.length ||
+    !updatedTags.every((val, index) => val === deal.tags[index])
+  ) {
+    updateData.tags = updatedTags;
+  }
+
+
+  // UPDATE COUPON CODE
+  if (payload?.coupon) {
+    updateData.coupon = payload.coupon;
   }
 
   // ONLY UPDATE QR CODE IF CHANGES WERE MADE

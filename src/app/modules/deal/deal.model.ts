@@ -24,7 +24,6 @@ const dealSchema = new Schema<IDeal>(
       ref: 'promotion',
       default: null,
     },
-
     title: {
       type: String,
       required: true,

@@ -10,8 +10,9 @@ export interface IDeal {
     reguler_price: number;
     discount: number;
     highlight: string[];
-    deletedHighlights: [];
+    deletedHighlights?: [];
     tags: string[];
+    deletedTags?: string[];
     description: string;
     images: string[];
     deletedImages: string[];

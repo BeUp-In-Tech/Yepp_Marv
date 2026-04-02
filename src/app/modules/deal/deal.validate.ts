@@ -33,6 +33,7 @@ export const UpdateDealZodSchema = z.object({
   highlight: z.array(z.string("Highlight must be string").min(1).max(120)).max(20).optional(),
   deletedHighlights: z.array(z.string().min(1).max(120)).max(20).optional(),
   tags: z.array(z.string().min(1).max(50)).max(20).default([]).optional(),
+  deletedTags: z.array(z.string().min(1).max(120)).max(20).optional(),
   images: z.array(z.string().url()).optional(),
   description: z.string().min(10).max(5000).trim().optional(),
   deletedImages: z.array(z.string().url()).optional(), // Images should be an array of valid URLs
