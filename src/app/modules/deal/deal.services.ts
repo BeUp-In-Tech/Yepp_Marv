@@ -415,7 +415,7 @@ const updateDealsService = async (
   if (timeDifference > 30 * 60 * 1000) {
     // 30 minutes
     // Delete iamge from cloudinary
-     setImmediate(async () => {
+    setImmediate(async () => {
       // Delete iamge from cloudinary
       if (payload.images) {
         try {
@@ -493,8 +493,7 @@ const updateDealsService = async (
 
   if (payload.deletedTags && payload.deletedTags.length > 0) {
     updatedTags = updatedTags.filter(
-      (tag: string) =>
-        !(payload.deletedTags as string[]).includes(tag)
+      (tag: string) => !(payload.deletedTags as string[]).includes(tag)
     );
   }
 
@@ -523,7 +522,6 @@ const updateDealsService = async (
     updateData.highlight = updatedHighlights;
   }
 
-
   // ONLY UPDATE TAGS IF CHANGES WERE MADE
   if (
     updatedTags.length !== deal.tags.length ||
@@ -531,7 +529,6 @@ const updateDealsService = async (
   ) {
     updateData.tags = updatedTags;
   }
-
 
   // UPDATE COUPON CODE
   if (payload?.coupon) {
@@ -654,8 +651,6 @@ const getMyDealsService = async (
   if (getCachedData) {
     return JSON.parse(getCachedData);
   }
-
-
 
   // QUERY BUILDER
   const queryBuilder = new QueryBuilder(DealModel.find(filter), query);
@@ -1319,6 +1314,41 @@ const topViewedDealsService = async (
   return { meta, topDeals };
 };
 
+// 10. DEAL ANALYTICS
+const dealAnalyticsService = async (authUserId: string, dealId: string) => {
+  const isDealExistPromise = await DealModel.findOne({
+    _id: dealId,
+    user: authUserId,
+  });
+  const shopPromise = await Shop.findOne({ vendor: authUserId }).select('_id');
+
+  const [isDealExist, shop] = await Promise.all([
+    isDealExistPromise,
+    shopPromise,
+  ]);
+
+  if (!isDealExist) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
+  }
+
+  if (!shop) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
+  }
+
+  const stats = await Views_Impressions.aggregate([
+    { $match: { deal: new mongoose.Types.ObjectId(dealId) } },
+    {
+      $group: {
+        _id: '$type',
+        total: { $sum: 1 },
+      },
+    },
+  ]);
+
+
+  return {  ...isDealExist.toObject(), totalViews: stats[0]?.total, totalImpression: stats[1]?.total };
+};
+
 // EXPORT ALL FUNCTION
 export const dealsServices = {
   createDealsService,
@@ -1331,4 +1361,5 @@ export const dealsServices = {
   getAllDealsService,
   getDealsByIdsService,
   topViewedDealsService,
+  dealAnalyticsService,
 };
