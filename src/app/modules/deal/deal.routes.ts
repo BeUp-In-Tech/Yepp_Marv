@@ -76,6 +76,7 @@ router.patch(
   ]),
   validateImageDimensions,
   uploadToCloudinary,
+  preParseMiddleware,
   validateRequest(UpdateDealZodSchema),
   dealsControllers.updateSingleDeals
 );
