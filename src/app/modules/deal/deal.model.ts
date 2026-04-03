@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import mongoose, { Schema } from 'mongoose';
 import { IDeal } from './deal.interface';
-import { asynMultipleImageDelete, asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
+import { asyncMultipleImageDelete, asyncSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 
 const dealSchema = new Schema<IDeal>(
   {
@@ -106,9 +106,9 @@ dealSchema.post('save', async function (error: any, doc: IDeal, next: any) {
   if (error?.code === 11000 || error?.name === "ValidationError") {
     try {
       await Promise.all([
-        doc?.images?.length ? asynMultipleImageDelete(doc.images) : null,
-        doc?.coupon_option?.qr ? asynSingleImageDelete(doc.coupon_option.qr) : null,
-        doc?.coupon_option?.upc ? asynSingleImageDelete(doc.coupon_option.upc) : null,
+        doc?.images?.length ? asyncMultipleImageDelete(doc.images) : null,
+        doc?.coupon_option?.qr ? asyncSingleImageDelete(doc.coupon_option.qr) : null,
+        doc?.coupon_option?.upc ? asyncSingleImageDelete(doc.coupon_option.upc) : null,
       ]);
     } catch (cleanupError) {
       // eslint-disable-next-line no-console

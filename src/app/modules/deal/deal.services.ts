@@ -12,19 +12,16 @@ import { DealModel } from './deal.model';
 import { Category } from '../categories/categories.model';
 import { QueryBuilder } from '../../utils/QueryBuilder';
 import { OutletModel } from '../outlet/outlet.model';
-import {
-  asynMultipleImageDelete,
-  asynSingleImageDelete,
-} from '../../utils/singleImageDeleteAsync';
+import { asyncMultipleImageDelete, asyncSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 import { ShopApproval } from '../shop/shop.interface';
 import { redisClient } from '../../config/redis.config';
 import { Views_Impressions } from '../views_impression/vi.model';
-import { generateCacheKey } from '../../utils/checheKeyGen';
+import { generateCacheKey } from '../../utils/cacheKeyGen';
 import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
 import crypto from 'crypto';
 import { sortObject } from '../../utils/sortObject';
 
-// 1. CREATE SERVICE
+// 1. CREATE DEAL
 const createDealsService = async (params: {
   user: JwtPayload;
   payload: IDeal; // used for auto QR URL
@@ -35,7 +32,7 @@ const createDealsService = async (params: {
   // CHECK USER IS VENDOR
   if (user.role !== Role.VENDOR) {
     if (payload.images) {
-      await asynMultipleImageDelete(payload.images);
+      await asyncMultipleImageDelete(payload.images);
     }
     throw new AppError(StatusCodes.FORBIDDEN, 'Only vendor can create deals');
   }
@@ -46,15 +43,15 @@ const createDealsService = async (params: {
   // THROW ERROR IF SHOP IS NOT FOUND
   if (!isShopExist) {
     if (payload.images) {
-      await asynMultipleImageDelete(payload.images);
+      await asyncMultipleImageDelete(payload.images);
     }
 
     if (payload.coupon_option.qr) {
-      await asynSingleImageDelete(payload.coupon_option.qr);
+      await asyncSingleImageDelete(payload.coupon_option.qr);
     }
 
     if (payload.coupon_option.upc) {
-      await asynSingleImageDelete(payload.coupon_option.upc);
+      await asyncSingleImageDelete(payload.coupon_option.upc);
     }
 
     throw new AppError(
@@ -66,15 +63,15 @@ const createDealsService = async (params: {
   // THROW ERROR IF SHOP ALREADY REJECTED
   if (isShopExist.shop_approval === ShopApproval.REJECTED) {
     if (payload.images) {
-      await asynMultipleImageDelete(payload.images);
+      await asyncMultipleImageDelete(payload.images);
     }
 
     if (payload.coupon_option.qr) {
-      await asynSingleImageDelete(payload.coupon_option.qr);
+      await asyncSingleImageDelete(payload.coupon_option.qr);
     }
 
     if (payload.coupon_option.upc) {
-      await asynSingleImageDelete(payload.coupon_option.upc);
+      await asyncSingleImageDelete(payload.coupon_option.upc);
     }
 
     throw new AppError(StatusCodes.FORBIDDEN, 'Your shop was rejected');
@@ -83,15 +80,15 @@ const createDealsService = async (params: {
   // THROW ERROR IF SHOP IS NOT APPROVED YET
   if (isShopExist.shop_approval !== ShopApproval.APPROVED) {
     if (payload.images) {
-      await asynMultipleImageDelete(payload.images);
+      await asyncMultipleImageDelete(payload.images);
     }
 
     if (payload.coupon_option.qr) {
-      await asynSingleImageDelete(payload.coupon_option.qr);
+      await asyncSingleImageDelete(payload.coupon_option.qr);
     }
 
     if (payload.coupon_option.upc) {
-      await asynSingleImageDelete(payload.coupon_option.upc);
+      await asyncSingleImageDelete(payload.coupon_option.upc);
     }
 
     throw new AppError(StatusCodes.BAD_REQUEST, 'Wait for shop approval');
@@ -101,15 +98,15 @@ const createDealsService = async (params: {
   const isCategoryExist = await Category.findById(categoryId).lean();
   if (!isCategoryExist) {
     if (payload.images) {
-      await asynMultipleImageDelete(payload.images);
+      await asyncMultipleImageDelete(payload.images);
     }
 
     if (payload.coupon_option.qr) {
-      await asynSingleImageDelete(payload.coupon_option.qr);
+      await asyncSingleImageDelete(payload.coupon_option.qr);
     }
 
     if (payload.coupon_option.upc) {
-      await asynSingleImageDelete(payload.coupon_option.upc);
+      await asyncSingleImageDelete(payload.coupon_option.upc);
     }
 
     throw new AppError(
@@ -154,7 +151,7 @@ const createDealsService = async (params: {
   };
   const doc = await DealModel.create(finalPayload);
 
-  // REMOVE CACHE (DASHBOARD API CHACHE)
+  // REMOVE CACHE (DASHBOARD API CACHE)
   redisClient.del('deals_by_category_stats');
   await invalidateAllMachineryCache('recent_deals:*');
   await invalidateAllMachineryCache('deals_stats:*');
@@ -163,7 +160,7 @@ const createDealsService = async (params: {
   return doc;
 };
 
-// 2. VIEW SERVICE
+// 2. VIEW DEAL
 const getSingleDealsService = async (
   _dealId: string,
   lat: number,
@@ -301,7 +298,7 @@ const getSingleDealsService = async (
   return final_deal;
 };
 
-// 3. DELETE SERVICE
+// 3. DELETE DEAL
 const deleteDealsService = async (user: JwtPayload, serviceId: string) => {
   if (user.role !== Role.VENDOR) {
     throw new AppError(StatusCodes.FORBIDDEN, 'Only vendor can delete');
@@ -349,19 +346,19 @@ const deleteDealsService = async (user: JwtPayload, serviceId: string) => {
   return null;
 };
 
-// 4. UPDATE SERVICE
+// 4. UPDATE DEAL
 const updateDealsService = async (
   user: JwtPayload,
   dealId: string,
   payload: IDeal
 ) => {
-  // CHECK IF THE SERVICE EXISTS
+  // CHECK IF THE DEAL EXISTS
   const deal = await DealModel.findById(dealId);
 
   if (!deal) {
     // DELETE IMAGE ASYNC
     setImmediate(async () => {
-      // Delete iamge from cloudinary
+      // Delete image from cloudinary
       if (payload.images) {
         try {
           await Promise.all(
@@ -369,27 +366,27 @@ const updateDealsService = async (
           );
 
           if (payload.coupon_option.qr) {
-            await asynSingleImageDelete(payload.coupon_option.qr);
+            await asyncSingleImageDelete(payload.coupon_option.qr);
           }
 
           if (payload.coupon_option.upc) {
-            await asynSingleImageDelete(payload.coupon_option.upc);
+            await asyncSingleImageDelete(payload.coupon_option.upc);
           }
         } catch (error: any) {
-          console.log('Cloudinary image deletation error: ', error.message);
+          console.log('Cloudinary image deletion error: ', error.message);
         }
       }
     });
 
     // Throw Error
-    throw new AppError(StatusCodes.NOT_FOUND, 'Service not found');
+    throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
   }
 
   // CHECK IF THE USER IS AUTHORIZED TO UPDATE THE SERVICE
   if (deal.user.toString() !== user.userId) {
-    // Delete iamge from cloudinary
+    // Delete image from cloudinary
     setImmediate(async () => {
-      // Delete iamge from cloudinary
+      // Delete image from cloudinary
       if (payload.images) {
         try {
           await Promise.all(
@@ -397,14 +394,14 @@ const updateDealsService = async (
           );
 
           if (payload.coupon_option.qr) {
-            await asynSingleImageDelete(payload.coupon_option.qr);
+            await asyncSingleImageDelete(payload.coupon_option.qr);
           }
 
           if (payload.coupon_option.upc) {
-            await asynSingleImageDelete(payload.coupon_option.upc);
+            await asyncSingleImageDelete(payload.coupon_option.upc);
           }
         } catch (error: any) {
-          console.log('Cloudinary image deletation error: ', error.message);
+          console.log('Cloudinary image deletion error: ', error.message);
         }
       }
     });
@@ -419,11 +416,11 @@ const updateDealsService = async (
   const serviceCreationTime = new Date(deal.createdAt as Date).getTime();
   const currentTime = Date.now();
   const timeDifference = currentTime - serviceCreationTime;
-  if (timeDifference > 30 * 60 * 1000) {
+  if (timeDifference > 30 * 60 * 1000 && deal.isPromoted) {
     // 30 minutes
-    // Delete iamge from cloudinary
+    // Delete image from cloudinary
     setImmediate(async () => {
-      // Delete iamge from cloudinary
+      // Delete image from cloudinary
       if (payload.images) {
         try {
           await Promise.all(
@@ -431,14 +428,14 @@ const updateDealsService = async (
           );
 
           if (payload.coupon_option.qr) {
-            await asynSingleImageDelete(payload.coupon_option.qr);
+            await asyncSingleImageDelete(payload.coupon_option.qr);
           }
 
           if (payload.coupon_option.upc) {
-            await asynSingleImageDelete(payload.coupon_option.upc);
+            await asyncSingleImageDelete(payload.coupon_option.upc);
           }
         } catch (error: any) {
-          console.log('Cloudinary image deletation error: ', error.message);
+          console.log('Cloudinary image deletion error: ', error.message);
         }
       }
     });
@@ -446,7 +443,7 @@ const updateDealsService = async (
     // THROW ERROR
     throw new AppError(
       StatusCodes.FORBIDDEN,
-      'You can only update the service within 30 minutes of creation'
+      'You can only update this deal within 30 minutes of creation'
     );
   }
 
@@ -558,15 +555,15 @@ const updateDealsService = async (
     updateData.coupon_option.upc = payload?.coupon_option?.upc;
   }
 
-  // UPDATE THE SERVICE IN DATABASE
-  const updatedService = await DealModel.findByIdAndUpdate(dealId, updateData, {
+  // UPDATE THE DEAL IN DATABASE
+  const updateDeal = await DealModel.findByIdAndUpdate(dealId, updateData, {
     runValidators: true,
     new: true,
   });
 
   // DELETE IMAGES FROM CLOUDINARY ASYNCHRONOUSLY IF NEEDED
   setImmediate(async () => {
-    // DEAL IMAGE DELETATION
+    // DEAL IMAGE DELETION
     if (payload.deletedImages && payload.deletedImages.length > 0) {
       try {
         await Promise.all(
@@ -579,19 +576,19 @@ const updateDealsService = async (
       }
     }
 
-    // QR IMAGE DELETATION
+    // QR IMAGE DELETION
     if (payload?.coupon_option?.qr) {
       try {
-        await asynSingleImageDelete(deal.coupon_option.qr as string);
+        await asyncSingleImageDelete(deal.coupon_option.qr as string);
       } catch (e) {
         console.log(`Cloudinary image deleting error`, e);
       }
     }
 
-    // UPC IMAGE DELETATION
+    // UPC IMAGE DELETION
     if (payload?.coupon_option?.upc) {
       try {
-        await asynSingleImageDelete(deal.coupon_option.upc as string);
+        await asyncSingleImageDelete(deal.coupon_option.upc as string);
       } catch (e) {
         console.log(`Cloudinary image deleting error`, e);
       }
@@ -600,7 +597,7 @@ const updateDealsService = async (
 
   // REMOVE REDIS CACHE KEY
   setImmediate(async () => {
-    await redisClient.del(`shop:${updatedService?.shop.toString()}`);
+    await redisClient.del(`shop:${updateDeal?.shop.toString()}`);
     await invalidateAllMachineryCache('machinery:*');
     await invalidateAllMachineryCache('recent_deals:*');
     await invalidateAllMachineryCache('deals_stats:*');
@@ -608,10 +605,10 @@ const updateDealsService = async (
   });
 
   // RETURN DATA
-  return updatedService;
+  return updateDeal;
 };
 
-// 5. GET MY SERVICE
+// 5. GET MY DEALS
 const getMyDealsService = async (
   userId: string,
   query: Record<string, string>
@@ -989,7 +986,7 @@ const getNearestDealsService = async (
     promotedUntil: { $gte: new Date() },
   });
 
-  // RESOLVE ALL PROMISE PARALALLY
+  // RESOLVE ALL PROMISE PARALLEL
   const [nearestDeals, totalPromotedDoc] = await Promise.all([
     nearestDealsPromise,
     totalPromotedDocPromise,
@@ -1196,11 +1193,11 @@ const getDealsByIdsService = async (
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  // SEND CACHE REPONSE
+  // SEND CACHE RESPONSE
   const cacheKey = `saved:${ids.join(',')}-pages:${page}-limit:${limit}`;
-  const getSaveddealsCache = await redisClient.get(cacheKey);
-  if (getSaveddealsCache) {
-    return JSON.parse(getSaveddealsCache);
+  const getSavedealsCache = await redisClient.get(cacheKey);
+  if (getSavedealsCache) {
+    return JSON.parse(getSavedealsCache);
   }
 
   const objectIds = ids.map((id) => new Types.ObjectId(id));

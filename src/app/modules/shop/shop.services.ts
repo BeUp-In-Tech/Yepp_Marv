@@ -8,7 +8,7 @@ import { Role } from '../user/user.interface';
 import mongoose, { Types } from 'mongoose';
 import { OutletModel } from '../outlet/outlet.model';
 import { JwtPayload } from 'jsonwebtoken';
-import { asynSingleImageDelete } from '../../utils/singleImageDeleteAsync';
+import { asyncSingleImageDelete } from '../../utils/singleImageDeleteAsync';
 import { redisClient } from '../../config/redis.config';
 import { NotificationType } from '../notification/notification.interface';
 import env from '../../config/env';
@@ -39,7 +39,7 @@ const createShopService = async (
   const isUser = await User.findById(user.userId);
   if (!isUser) {
     if (payload.shop.business_logo) {
-      await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
+      await asyncSingleImageDelete(payload.shop.business_logo); // Delete image first
     }
     throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
@@ -47,7 +47,7 @@ const createShopService = async (
   // CHECK USER VERIFIED
   if (!isUser.isVerified) {
     if (payload.shop.business_logo) {
-      await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
+      await asyncSingleImageDelete(payload.shop.business_logo); // Delete image first
     }
 
     // Throw Error
@@ -62,10 +62,10 @@ const createShopService = async (
     .lean();
   if (alreadyHasShop) {
     if (payload.shop.business_logo) {
-      await asynSingleImageDelete(payload.shop.business_logo); // Delete image first
+      await asyncSingleImageDelete(payload.shop.business_logo); // Delete image first
     }
 
-    // Thorw Error
+    // THROW Error
     throw new Error('Shop already exists for this vendor');
   }
 
@@ -108,7 +108,7 @@ const createShopService = async (
     }
 
     
-    // REMOVE CACHE (DASHBOARD API CHACHE)
+    // REMOVE CACHE (DASHBOARD API CACHE)
     await invalidateAllMachineryCache('all_vendors_dashboard:*'); // recent vendors stats
 
     
@@ -217,7 +217,7 @@ const updateShopService = async (
     );
   }
 
-  // 3. Shop existance
+  // 3. Shop existence
   const shop = await Shop.findById(shopId).select('business_logo');
   if (!shop) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
@@ -277,7 +277,7 @@ const updateShopService = async (
   setImmediate(async () => {
     // Delete old business logo
     if (payload.business_logo && shop.business_logo) {
-      await asynSingleImageDelete(shop.business_logo);
+      await asyncSingleImageDelete(shop.business_logo);
     }
   });
 
@@ -354,7 +354,7 @@ const updateShopService = async (
     const notificationPayload = {
       user: new Types.ObjectId(user._id),
       title: 'Your shop created request rejected by Yepp',
-      body: 'Pleae kindly submit valid data and information about your business',
+      body: 'Please kindly submit valid data and information about your business',
       type: NotificationType.SHOP,
       entityId: shopId,
       webUrl: `${env.FRONTEND_URL}`,
