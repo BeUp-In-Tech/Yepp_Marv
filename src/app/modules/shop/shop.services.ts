@@ -221,7 +221,7 @@ const updateShopService = async (
   const shop = await Shop.findById(shopId).select('business_logo');
   if (!shop) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Shop not found');
-  }
+  }  
 
   // 4. build controlled update object
   const updateData: Record<string, any> = {};
@@ -250,6 +250,7 @@ const updateShopService = async (
     updateData.business_logo = payload.business_logo;
   }
 
+  
   // 6. prevent empty update
   if (Object.keys(updateData).length === 0) {
     throw new AppError(
