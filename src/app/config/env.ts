@@ -67,7 +67,7 @@ interface EnvInterfaces {
   STRIPE_WEBHOOK_SECRET: string;
 }
 
-const loadEnvVarbles = (): EnvInterfaces => {
+const loadEnvVaribles = (): EnvInterfaces => {
   const requireEnvVariables: string[] = [
     'PORT',
     'MONGO_URI',
@@ -213,4 +213,4 @@ const loadEnvVarbles = (): EnvInterfaces => {
   };
 };
 
-export default loadEnvVarbles();
+export default loadEnvVaribles();

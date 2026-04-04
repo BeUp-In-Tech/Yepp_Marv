@@ -110,7 +110,7 @@ const applyVoucherService = async (user: JwtPayload, voucherCode: string) => {
 
   return  {
     voucher_id: voucher._id,
-    discount_parcantage: voucher.voucher_discount,
+    discount_parentage: voucher.voucher_discount,
     voucher_code: voucher.voucher_code
   };
 };

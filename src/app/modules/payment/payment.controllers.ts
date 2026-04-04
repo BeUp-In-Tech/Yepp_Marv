@@ -8,6 +8,18 @@ import { JwtPayload } from 'jsonwebtoken';
 
 
 // STRIPE CHECKOUT
+const inAppPurchase = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const result = await paymentService.inAppPurchase(req.body);
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.CREATED,
+        message: "Checkout session created",
+        data: result
+    })
+})
+
+
+// STRIPE CHECKOUT
 const stripePayment = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
     const {dealId, planId, voucher} = req.body;
@@ -36,5 +48,6 @@ const stripeWebhook = CatchAsync(async (req: Request, res: Response, next: NextF
 
 export const paymentControllers = {
     stripePayment,
-    stripeWebhook
+    stripeWebhook,
+    inAppPurchase
 }

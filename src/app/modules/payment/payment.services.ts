@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { JwtPayload } from 'jsonwebtoken';
 import { Role } from '../user/user.interface';
@@ -21,8 +22,220 @@ import { paymentFailedHandler } from '../../utils/paymentHelper/paymentFailed.he
 import { DealModel } from '../deal/deal.model';
 import { dealHandleQueue } from '../../queue/index.queue';
 import { JobName } from '../../queue/worker/deal.worker';
+import { google } from 'googleapis';
+import axios from 'axios';
+import { scheduleDealJobs } from '../../queue/job/deal.job';
+import { redisClient } from '../../config/redis.config';
+import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
+import { anyCurrencyToUSD } from '../../utils/currencyConverter';
+ 
 
-// HELPER INTERFACE
+// 1. Validate Android
+async function validateAndroid(productId: string, purchaseToken: string) {
+  try {
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT) {
+      throw new Error(`Env required: ${process.env.GOOGLE_SERVICE_ACCOUNT}`);
+    }
+    const credentials = JSON.parse(
+      process.env.GOOGLE_SERVICE_ACCOUNT as string
+    );
+    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/androidpublisher'],
+    });
+
+
+    const publisher = google.androidpublisher({
+      version: 'v3',
+      auth,
+    });
+
+    const res = await publisher.purchases.products.get({
+      packageName: 'agency.beuptech.yepp',
+      productId,
+      token: purchaseToken,
+    });
+
+    const data = res.data as any;
+
+    return (
+      data.purchaseState === 0 && // purchased
+      data.acknowledgementState === 1 // acknowledged
+    );
+  } catch (error: any) {
+    console.log('Android In app purchase error: ', error);
+    return false;
+  }
+}
+
+// 2. Validate iOS
+async function validateIOS(receipt: string) {
+  const response = await axios.post(
+    'https://buy.itunes.apple.com/verifyReceipt',
+    {
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        'receipt-data': receipt,
+        password: process.env.APPLE_SHARED_SECRET,
+      }),
+    }
+  );
+
+  const data = await response.data;
+  console.log('IOS', data);
+
+  // Sandbox fallback
+  if (data.status === 21007) {
+    const sandboxRes = await fetch(
+      'https://sandbox.itunes.apple.com/verifyReceipt',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'receipt-data': receipt,
+          password: process.env.APPLE_SHARED_SECRET,
+        }),
+      }
+    );
+
+    return (await sandboxRes.json()).status === 0;
+  }
+
+  return data.status === 0;
+}
+
+// IN-APP-PURCHASE HANDLING
+const inAppPurchase = async (payload: any) => {
+  console.log('Payload: ', payload);
+
+  let isValid = false;
+  if (payload.source === 'google_play') {
+    isValid = await validateAndroid(
+      payload.productId,
+      payload.serverVerificationData
+    );
+    console.log('Google verification: ', isValid);
+  }
+
+  if (payload.source === 'apple_play') {
+    isValid = await validateIOS(payload.verificationData);
+    console.log('Apple verification: ', isValid);
+  }
+
+  if (isValid) {
+    // Calculate days based on ID
+    const days = payload.productId.includes('7d')
+      ? 7
+      : payload.productId.includes('14d')
+        ? 14
+        : 30;
+
+    const getDeal = await DealModel.findById(payload?.dealId);
+    if (!getDeal) {
+      throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
+    }
+
+    // CHECK ALREADY PROMOTED
+    const alreadyPromoted = await Promotion.findOne({
+      deal: payload?.dealId,
+      status: PromotionStatus.ACTIVE,
+    });
+
+    if (alreadyPromoted) {
+      console.log(
+        `This service already promoted: dealId: ${payload?.dealId}, active_promotion_id: ${alreadyPromoted._id.toString()} `
+      );
+
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        'This service already promoted'
+      );
+    }
+
+    // PROMOTE DEAL
+    const now = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + days);
+
+    const payment_id = new Types.ObjectId();
+
+    const session = await mongoose.startSession();
+    let promotion: any;
+    try {
+      session.startTransaction();
+
+      const price = await anyCurrencyToUSD(payload?.price, payload?.currency);
+
+      promotion = await Promotion.create(
+        [
+          {
+            user: getDeal.user,
+            shop: getDeal.shop,
+            deal: payload?.dealId,
+            payment: payment_id,
+            validityDays: days,
+            price: price, // price needed
+            startAt: now,
+            endAt: endDate,
+            status: PromotionStatus.ACTIVE,
+          },
+        ],
+        { session }
+      );
+
+      await PaymentModel.create(
+        [
+          {
+            _id: payment_id,
+            user: getDeal.user,
+            deal: payload?.dealId,
+            promotion: promotion[0]._id,
+            transaction_id: generateTransactionId(),
+            amount: price,
+            currency: 'usd',
+            voucher_applied: null,
+            provider: PaymentProvider.GOOGLE_PAY,
+            payment_status: PaymentStatus.PAID,
+          },
+        ],
+        { session }
+      );
+
+      getDeal.promotedUntil = endDate;
+      getDeal.isPromoted = true;
+      getDeal.activePromotion = promotion._id;
+      await getDeal.save({ session });
+
+      await session.commitTransaction();
+
+      // ADD QUEUE JOB SCHEDULE
+      scheduleDealJobs(getDeal);
+
+      // REMOVE REDIS CACHE KEY
+      setImmediate(async () => {
+        await redisClient.del(`shop:${getDeal.shop.toString()}`);
+        await redisClient.del(`dashboard_analytics_total`); // dashboard analytics total cache invalidate
+        await redisClient.del(`last_one_year_revenue_trend`); // last one year revenue trend cached invalidate (dashboard api)
+        await invalidateAllMachineryCache('machinery:all:*'); // vendor stats cache invalidate (dashboard)
+        await invalidateAllMachineryCache('all_vendors_dashboard:*'); // vendor stats cache invalidate (dashboard)
+        await invalidateAllMachineryCache('latest_transaction:*'); // latest transaction list cache invalidate (dashboard)
+        await invalidateAllMachineryCache(
+          `my_deals-userId:${getDeal.user.toString()}:*`
+        ); // get my deals cache invalidate (deal.service.ts)
+      });
+    } catch (error: any) {
+      console.log('Deal promotion error from In App Purchase: ', error.message);
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  return 'OK';
+};
 
 // STRIPE PAYMENT -> PROMOTE SERVICE
 const stripePay = async (
@@ -78,15 +291,15 @@ const stripePay = async (
     voucher: string;
   }> = {};
 
-  // APPLY VOUCHER, IF VOUCHER PROVIDE
+  // APPLY VOUCHER, IF VOUCHER PROVIDE parentage
   if (voucher) {
     try {
-      const { voucher_id, discount_parcantage } =
+      const { voucher_id, discount_parentage } =
         await voucherServices.applyVoucherService(user, voucher);
 
       // UPDATE FINAL PRICE
       final_price =
-        final_price - (final_price / 100) * Number(discount_parcantage);
+        final_price - (final_price / 100) * Number(discount_parentage);
       voucher_payload.voucher_id = voucher_id;
       voucher_payload.voucher = voucher;
     } catch (err: any) {
@@ -215,9 +428,7 @@ const stripePay = async (
       }
     );
 
-    // eslint-disable-next-line no-console
-    console.log("Job name:", job.name);
-
+    console.log('Job name:', job.name);
 
     // RETURN CHECKOUT URL
     return { checkout_url: stripeSession.url };
@@ -250,7 +461,10 @@ const stripeWebhookHandling = async (req: Request) => {
       env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err: any) {
-    throw new AppError(StatusCodes.BAD_REQUEST, `Webhook Error: ${err.message} `);
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      `Webhook Error: ${err.message} `
+    );
   }
 
   /* ---------- HANDLE EVENTS ---------- */
@@ -278,4 +492,5 @@ const stripeWebhookHandling = async (req: Request) => {
 export const paymentService = {
   stripePay,
   stripeWebhookHandling,
+  inAppPurchase,
 };
