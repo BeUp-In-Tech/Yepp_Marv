@@ -61,7 +61,7 @@ const staticPageSchema = new Schema<IStaticPage>(
 );
 
 // Index (optional but useful)
-staticPageSchema.index({ slug: 1 });
+// staticPageSchema.index({ slug: 1 });
 
 // Model
 export const StaticPageModel = model<IStaticPage>(
