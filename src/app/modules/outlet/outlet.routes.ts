@@ -8,6 +8,6 @@ import { outletControllers } from "./outlet.controller";
 const router = Router();
 
 // UPDATE OUTLET
-router.patch('/', validateRequest(outletUpdateZodSchema), checkAuth(...Object.keys(Role)), outletControllers.updateOutlet);
+router.patch('/', checkAuth(...Object.keys(Role)), validateRequest(outletUpdateZodSchema),  outletControllers.updateOutlet);
 
 export const outletRouter = router;

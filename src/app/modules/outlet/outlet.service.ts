@@ -3,6 +3,7 @@ import AppError from "../../errorHelpers/AppError";
 import { Shop } from "../shop/shop.model";
 import { IOutlet } from "./outlet.interface";
 import { OutletModel } from "./outlet.model";
+import { redisClient } from "../../config/redis.config";
 
 interface IOutletPayload extends IOutlet {
     coordinates?:  [number, number]
@@ -35,6 +36,11 @@ const updateOutletService = async (outletId: string, userId: string, payload: Pa
     if (!updateOutlet) {
         throw new AppError(StatusCodes.BAD_REQUEST, "Outlet not found");
     }
+
+
+    // DELETE SHOP CACHED DATA
+    await redisClient.del(`shop:${updateOutlet.shop.toString()}`);
+    await redisClient.del(`shop:${userId}`);
 
     return updateOutlet
     
