@@ -47,6 +47,8 @@ interface EnvInterfaces {
   APPLE_WEB_CLIENT_ID: string;
   APPLE_WEB_REDIRECT_URI: string;
 
+  APPLE_IN_APP_PURCHASE_SECRET: string;
+
   EXPRESS_SESSION_SECRET: string;
 
   TYPE: string;
@@ -111,6 +113,8 @@ const loadEnvVarbles = (): EnvInterfaces => {
     'APPLE_IOS_CLIENT_ID',
     'APPLE_WEB_CLIENT_ID',
     'APPLE_WEB_REDIRECT_URI',
+
+    'APPLE_IN_APP_PURCHASE_SECRET',
 
 
     'EXPRESS_SESSION_SECRET',
@@ -186,6 +190,8 @@ const loadEnvVarbles = (): EnvInterfaces => {
     APPLE_IOS_CLIENT_ID: process.env.APPLE_IOS_CLIENT_ID as string,
     APPLE_WEB_CLIENT_ID: process.env.APPLE_WEB_CLIENT_ID as string,
     APPLE_WEB_REDIRECT_URI: process.env.APPLE_WEB_REDIRECT_URI as string,
+
+    APPLE_IN_APP_PURCHASE_SECRET: process.env.APPLE_IN_APP_PURCHASE_SECRET as string,
 
 
     EXPRESS_SESSION_SECRET: process.env.EXPRESS_SESSION_SECRET as string,

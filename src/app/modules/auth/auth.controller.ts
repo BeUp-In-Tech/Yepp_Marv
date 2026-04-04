@@ -11,8 +11,6 @@ import env from '../../config/env';
 import { SendResponse } from '../../utils/SendResponse';
 import { authService } from './auth.service';
 
-
-
 // REGISTER WITH GOOGLE
 const googleRegister = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -47,7 +45,7 @@ const googleCallback = CatchAsync(
       res.redirect(
         `${env.DEEP_LINK}/auth/google?access=${token.accessToken}&refresh=${token.refreshToken}`
       );
-    }else {
+    } else {
       res.redirect(
         `${env.FRONTEND_URL}/shop-overview?access=${token.accessToken}&refresh=${token.refreshToken}`
       );
@@ -56,20 +54,48 @@ const googleCallback = CatchAsync(
 );
 
 // APPLE LOGIN
-const appleLogin = CatchAsync(
+const appleCallback = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { code } = req.body;
-    if (!code) {
-      throw new AppError(StatusCodes.BAD_REQUEST, 'Authorization code is required');
-    }
+    passport.authenticate(
+      'apple',
+      async function (err: any, user: any, info: string) {
+
+        if (err) {
+          if (err == 'AuthorizationError') {
+            res.send(
+              'Oops! Looks like you didn\'t allow the app to proceed. Please sign in again! <br /> \
+				<a href="/login">Sign in with Apple</a>'
+            );
+          } else if (err == 'TokenError') {
+            res.send(
+              'Oops! Couldn\'t get a valid token from Apple\'s servers! <br /> \
+				<a href="/login">Sign in with Apple</a>'
+            );
+          } else {
+            res.send(err);
+          }
+        }
   
-    const decoded = await authService.appleLoginService(code) as unknown as JwtPayload;
-    
-    
-    res.redirect(`${env.FRONTEND_URL}/shop-overview?access=${decoded.accessToken}&refresh=${decoded.refreshToken}`)
+        const token = await createUserTokens(user);
+
+        const userAgent = req.headers['user-agent'] || '';
+
+        const isAndroid = /android/i.test(userAgent);
+        const isIOS = /iphone|ipad|ipod/i.test(userAgent);
+
+        if (isAndroid || isIOS) {
+          res.redirect(
+            `${env.DEEP_LINK}/auth/apple?access=${token.accessToken}&refresh=${token.refreshToken}`
+          );
+        } else {
+          res.redirect(
+            `${env.FRONTEND_URL}/shop-overview?access=${token.accessToken}&refresh=${token.refreshToken}`
+          );
+        }
+      }
+    )(req, res, next);
   }
 );
-
 
 // CREDENTIAL LOGIN
 const credentialsLogin = CatchAsync(
@@ -183,5 +209,5 @@ export const authController = {
   verifyForgetPasswordOTP,
   resetPassword,
   getNewAccessToken,
-  appleLogin
+  appleCallback,
 };

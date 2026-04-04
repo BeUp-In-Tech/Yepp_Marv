@@ -28,9 +28,8 @@ router.get(
 );
 
 // APPLE LOGIN
-router.post('/apple_login', authController.appleLogin);
-
-
+router.get("/apple/apple_login", passport.authenticate('apple'));
+router.post("/apple/callback",  authController.appleCallback);
 
 
 export const authRouter = router;
