@@ -74,8 +74,6 @@ async function validateAndroid(productId: string, purchaseToken: string) {
 const validateIOS = async (signedTransactionInfo: string) => {
   try {
 
-    console.log("IOS entered");
-    
     // 1. SPLIT JWS INTO PARTS
     const [headerB64] = signedTransactionInfo.split(".");
     
@@ -100,13 +98,12 @@ const validateIOS = async (signedTransactionInfo: string) => {
    
    // 4. IMPORT PUBLIC KEY FROM CERTIFICATE
    const publicKey = await importX509(pem, "ES256");
-   
+
    // 5. VERIFY JWS SIGNATURE
    const { payload } = await jwtVerify(signedTransactionInfo, publicKey, {
      algorithms: ["ES256"],
     });
     
-    console.log("IOS Payload: ", payload);
 
     // 6. (IMPORTANT) VALIDATE APP-SPECIFIC FIELDS
     if (payload.bundleId !== env.APPLE_IOS_CLIENT_ID) {
@@ -138,13 +135,118 @@ const appleInAppPurchase = async (receipt: any) => {
   valid &&
   data?.transactionReason === "PURCHASE" &&
   data?.inAppOwnershipType === "PURCHASED" &&
-  data?.bundleId === process.env.APPLE_BUNDLE_ID;
-
-  console.log(isValidPurchase);
-  
+  data?.bundleId === env.APPLE_IOS_CLIENT_ID;
 
   if (isValidPurchase) {
-    console.log("OK");
+      // Calculate days based on ID
+    const days = (data?.productId as string)?.includes('7d')
+      ? 7
+      : (data?.productId as string)?.includes('14d')
+        ? 14
+        : 30;
+
+    const getDeal = await DealModel.findById(receipt?.dealId);
+    if (!getDeal) {
+      throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
+    }
+
+
+    // CHECK ALREADY PROMOTED
+    const alreadyPromoted = await Promotion.findOne({
+      deal: receipt?.dealId,
+      status: PromotionStatus.ACTIVE,
+    });
+    
+
+    if (alreadyPromoted) {
+      console.log(
+        `This service already promoted: dealId: ${receipt?.dealId}, active_promotion_id: ${alreadyPromoted._id.toString()} `
+      );
+
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        'This service already promoted'
+      );
+    }
+
+    // PROMOTE DEAL
+    const now = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + days);
+
+    const payment_id = new Types.ObjectId();
+
+    const session = await mongoose.startSession();
+    let promotion: any;
+    try {
+      session.startTransaction();
+
+      const price = await anyCurrencyToUSD(data?.price as number, data?.currency as string);
+
+      promotion = await Promotion.create(
+        [
+          {
+            user: getDeal.user,
+            shop: getDeal.shop,
+            deal: receipt?.dealId,
+            payment: payment_id,
+            validityDays: days,
+            price: price, // price needed
+            startAt: now,
+            endAt: endDate,
+            status: PromotionStatus.ACTIVE,
+          },
+        ],
+        { session }
+      );
+
+      await PaymentModel.create(
+        [
+          {
+            _id: payment_id,
+            user: getDeal.user,
+            deal: receipt?.dealId,
+            promotion: promotion[0]._id,
+            transaction_id: generateTransactionId(),
+            amount: price,
+            currency: 'usd',
+            voucher_applied: null,
+            provider: PaymentProvider.GOOGLE_PAY,
+            payment_status: PaymentStatus.PAID,
+          },
+        ],
+        { session }
+      );
+
+      getDeal.promotedUntil = endDate;
+      getDeal.isPromoted = true;
+      getDeal.activePromotion = promotion[0]._id;
+      await getDeal.save({ session });
+
+      await session.commitTransaction();
+
+      // ADD QUEUE JOB SCHEDULE
+      scheduleDealJobs(getDeal);
+
+      // REMOVE REDIS CACHE KEY
+      setImmediate(async () => {
+        await redisClient.del(`shop:${getDeal.shop.toString()}`);
+        await redisClient.del(`dashboard_analytics_total`); // dashboard analytics total cache invalidate
+        await redisClient.del(`last_one_year_revenue_trend`); // last one year revenue trend cached invalidate (dashboard api)
+        await invalidateAllMachineryCache('machinery:all:*'); // vendor stats cache invalidate (dashboard)
+        await invalidateAllMachineryCache('all_vendors_dashboard:*'); // vendor stats cache invalidate (dashboard)
+        await invalidateAllMachineryCache('latest_transaction:*'); // latest transaction list cache invalidate (dashboard)
+        await invalidateAllMachineryCache(
+          `my_deals-userId:${getDeal.user.toString()}:*`
+        ); // get my deals cache invalidate (deal.service.ts)
+      });
+    } catch (error: any) {
+      console.log('Deal promotion error from In App Purchase: ', error.message);
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 
   console.log("Not OK");

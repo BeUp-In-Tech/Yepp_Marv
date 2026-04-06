@@ -6,10 +6,11 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon --watch src --exec ts-node-dev ./src/server.ts",
-    "start": "pm2 start ecosystem.config.js",
+    "start": "pm2 start ecosystem.config.js -i max",
     "restart": "pm2 restart ecosystem.config.js",
+    "stop": "pm2 delete all",
     "lint": "npx eslint ./src",
-    "build": "tsc",
+    "build": "tsc && cpy \"src/app/utils/templates/**/*\" \"dist/app/utils/templates\" --parents",
     "format": "npx prettier --write .",
     "worker:dev": "nodemon --watch src --exec ts-node ./src/app/queue/worker.ts",
     "worker": "node ./src/app/queue/worker.ts"
@@ -49,6 +50,7 @@
     "bcrypt": "^6.0.0",
     "bullmq": "^5.70.4",
     "cloudinary": "^1.41.3",
+    "connect-redis": "^9.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "currency-converter-lt": "^2.0.1",
