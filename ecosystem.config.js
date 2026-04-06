@@ -4,8 +4,8 @@ module.exports = {
     {
       name: 'server',
       script: './dist/server.js',
-      instances: 1,
-      exec_mode: 'fork',
+      instances: "max",
+      exec_mode: 'cluster',
       watch: false,
       autorestart: true,
       max_memory_restart: '500M',
