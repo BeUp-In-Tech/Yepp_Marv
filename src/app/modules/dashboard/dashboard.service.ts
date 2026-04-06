@@ -105,7 +105,7 @@ const allVendorsStats = async (query: Record<string, string>) => {
     return JSON.parse(getCachedData);
   }
 
-  const pipeline: any[] = [];
+  let pipeline: any[] = [];
 
   // STAGE 0: APPROVAL FILTER (early = faster)
   if (approval) {
@@ -233,16 +233,28 @@ const allVendorsStats = async (query: Record<string, string>) => {
     { $limit: limit }
   );
 
-  const vendorsStats = await Shop.aggregate(pipeline);
+  const vendorsStatsPromise = await Shop.aggregate(pipeline);
+  pipeline = [];
+
+  const totalVendorsPromise = Shop.countDocuments();
+  const totalActiveVendorsPromise = Shop.countDocuments({ shop_approval: ShopApproval.APPROVED });
+  const totalPendingVendorsPromise = Shop.countDocuments({ shop_approval: ShopApproval.PENDING });
+
+  const [vendorsStats, totalVendors, totalActiveVendors, totalPendingVendors] = await Promise.all([vendorsStatsPromise, totalVendorsPromise, totalActiveVendorsPromise, totalPendingVendorsPromise]);
+
+  const final_data = {
+    summery: {totalVendors, totalActiveVendors, totalPendingVendors},
+    vendors: vendorsStats
+  }
 
   // STORE DATA IN REDIS
-  await redisClient.set(cacheKey, JSON.stringify(vendorsStats), {
+  await redisClient.set(cacheKey, JSON.stringify(final_data), {
     EX: 3600, // 1 hour
   });
 
   // Return data
 
-  return vendorsStats;
+  return final_data;
 };
 
 // 3. RECENT DEALS STATS
@@ -308,6 +320,25 @@ const dealsStats = async (query: Record<string, string>) => {
   }
 
   // DATABASE QUERY
+  const searchMatch = {
+    $or: [
+      { title: { $regex: query.searchTerm || '', $options: 'i' } },
+      { tags: { $regex: query.searchTerm || '', $options: 'i' } },
+      {
+        'shop.business_name': {
+          $regex: query.searchTerm || '',
+          $options: 'i',
+        },
+      },
+      {
+        'category.category_name': {
+          $regex: query.searchTerm || '',
+          $options: 'i',
+        },
+      },
+    ],
+  };
+
   const result = await DealModel.aggregate([
     // STAGE 1: JOIN WITH VIEW IMPRESSION
     {
@@ -340,7 +371,7 @@ const dealsStats = async (query: Record<string, string>) => {
       },
     },
 
-    // STAGE 2: JOIN WITH SHOP
+    // JOIN WITH SHOP
     {
       $lookup: {
         from: 'shops',
@@ -367,33 +398,12 @@ const dealsStats = async (query: Record<string, string>) => {
       $addFields: {
         views: { $ifNull: [{ $first: '$analytics.views' }, 0] },
         impressions: { $ifNull: [{ $first: '$analytics.impressions' }, 0] },
-
         status: {
           $cond: [{ $gt: ['$promotedUntil', new Date()] }, 'Active', 'Expired'],
         },
       },
     },
 
-    {
-      $match: {
-        $or: [
-          { title: { $regex: query.searchTerm || '', $options: 'i' } },
-          { tags: { $regex: query.searchTerm || '', $options: 'i' } },
-          {
-            'shop.business_name': {
-              $regex: query.searchTerm || '',
-              $options: 'i',
-            },
-          },
-          {
-            'category.category_name': {
-              $regex: query.searchTerm || '',
-              $options: 'i',
-            },
-          },
-        ],
-      },
-    },
     {
       $facet: {
         summary: [
@@ -413,10 +423,10 @@ const dealsStats = async (query: Record<string, string>) => {
         ],
 
         deals: [
+          ...(query.searchTerm ? [{ $match: searchMatch }] : []),
           { $sort: sortStage },
           { $skip: skip },
           { $limit: limit },
-
           {
             $project: {
               title: 1,
@@ -671,56 +681,53 @@ const sendNotificationAndEmail = async (
 ) => {
   const { title, message, channel, to } = payload;
 
+  const allVendorsDeviceTokens = await User.find({}).select(
+    'email deviceTokens'
+  );
+  const filterDeviceToken = allVendorsDeviceTokens.map(
+    (deviceToken) => deviceToken.deviceTokens
+  );
+  const activeTokens = filterDeviceToken
+    .flat()
+    .filter((device) => device?.isActive)
+    .map((device) => device.token);
 
-  const allVendorsDeviceTokens = await User.find({}).select('email deviceTokens');
-      const filterDeviceToken = allVendorsDeviceTokens.map(
-        (deviceToken) => deviceToken.deviceTokens
-      );
-      const activeTokens = filterDeviceToken
-        .flat() 
-        .filter((device) => device?.isActive)  
-        .map((device) => device.token); 
-
-        const emails = allVendorsDeviceTokens.map((deviceToken) => deviceToken.email);
-
+  const emails = allVendorsDeviceTokens.map((deviceToken) => deviceToken.email);
 
   // 1. Send Push Notification if enabled
   if (channel.push) {
     if (to.active_vendors) {
-      
-        
-        
-        const notificationPayload = {
-                    title: title,
-                    body: message,
-                    type: NotificationType.SYSTEM,
-                    webUrl: `${env.FRONTEND_URL}/notification`,
-                    deepLink: `${env.DEEP_LINK}/notification`,
-                    data: {},
-              }
+      const notificationPayload = {
+        title: title,
+        body: message,
+        type: NotificationType.SYSTEM,
+        webUrl: `${env.FRONTEND_URL}/notification`,
+        deepLink: `${env.DEEP_LINK}/notification`,
+        data: {},
+      };
 
       await NotificationModel.create(notificationPayload);
 
-       const messagePayload = {
-            tokens: activeTokens,
-            notification: {
-              title: title,
-              body: message || '',
-            },
-            data: {
-              type: NotificationType.SYSTEM,
-               webUrl: `${env.FRONTEND_URL}/notification`,
-               deepLink: `${env.DEEP_LINK}/notification`,
-            },
-          };
+      const messagePayload = {
+        tokens: activeTokens,
+        notification: {
+          title: title,
+          body: message || '',
+        },
+        data: {
+          type: NotificationType.SYSTEM,
+          webUrl: `${env.FRONTEND_URL}/notification`,
+          deepLink: `${env.DEEP_LINK}/notification`,
+        },
+      };
 
-        await admin.messaging().sendEachForMulticast(messagePayload);
+      await admin.messaging().sendEachForMulticast(messagePayload);
     }
   }
 
   // 2. Send Email if enabled
   if (channel.email) {
-   sendBulkEmails(emails, {title, message});
+    sendBulkEmails(emails, { title, message });
   }
 
   return {
