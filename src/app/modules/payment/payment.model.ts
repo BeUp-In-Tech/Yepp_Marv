@@ -80,6 +80,10 @@ const PaymentSchema = new Schema<IPayment>(
   }
 );
 
-PaymentSchema.index({ user: 1, payment_status: 1 });
+
+PaymentSchema.index(
+  { deal: 1, transaction_id: 1 },
+  { unique: true }
+);
 
 export const PaymentModel = model<IPayment>('payment', PaymentSchema)

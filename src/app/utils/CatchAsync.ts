@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextFunction, Request, Response } from 'express';
+
 
 type AsyncHandler = (
   req: Request,
@@ -12,7 +14,9 @@ export const CatchAsync =
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await fn(req, res, next);
-    } catch (error) {
+    } catch (error: any) {
+      console.log(error.message);
+      
       next(error);
     }
   };

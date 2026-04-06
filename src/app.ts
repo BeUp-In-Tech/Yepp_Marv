@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -7,42 +8,82 @@ import { NotFound } from './app/middlewares/NotFound';
 import rateLimit from 'express-rate-limit';
 import { safeSanitizeMiddleware } from './app/middlewares/mongoSanitizer';
 import env from './app/config/env';
-import expressSession from 'express-session';
+import session from 'express-session';
 import passport from 'passport';
-import './app/config/passport.config'
+import './app/config/passport.config';
 import { paymentControllers } from './app/modules/payment/payment.controllers';
+import { RedisStore } from 'connect-redis';
+import { redisClient } from './app/config/redis.config';
 
 
 const app = express();
- 
-app.post('/webhook', express.raw({ type: 'application/json'}), paymentControllers.stripeWebhook )
 
+// Stripe webhook must stay before express.json()
+app.post(
+  '/webhook',
+  express.raw({ type: 'application/json' }),
+  paymentControllers.stripeWebhook
+);
 
 app.set('trust proxy', 1);
-app.use(expressSession({
-  secret: env.EXPRESS_SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false
-}));
 
-app.use(passport.initialize()); // Initilazed Passport
-app.use(passport.session()); // Create a session
-app.use(express.json());
-app.use(cors({
-  origin: env.FRONTEND_URL,
-  credentials: true,
-  preflightContinue: true,
-  methods: ["GET", "POST", "PATCH", "DELETE"]
-}));
+// CORS
+app.use(
+  cors({
+    origin: env.FRONTEND_URL,
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  })
+);
+
+// Optional: you can keep cookieParser if you use signed/custom cookies elsewhere
 app.use(cookieParser());
+
+// Normal body parsers
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 app.use(safeSanitizeMiddleware);
 
+console.log('RedisStore import type:', typeof RedisStore);
+console.log('redisClient exists:', !!redisClient);
+console.log('redisClient isOpen:', redisClient.isOpen);
+
+// Redis session store
+const redisStore = new RedisStore({
+  client: redisClient,
+  prefix: 'yeppads:sess:',
+});
+
+console.log('redisStore created:', !!redisStore);
+
+app.use(
+  session({
+    store: redisStore,
+    secret: env.EXPRESS_SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    name: 'yeppads.sid',
+    cookie: {
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production', // true on HTTPS
+      sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax', // cross-origin frontend support
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    },
+  })
+);
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 const limiter = rateLimit({
-  windowMs: env.REQUEST_RATE_LIMIT_TIME * 1000 * 10, 
-  max: env.REQUEST_RATE_LIMIT,  
-  message: {success: false, statusCode: 400, message: "Too many requests, please try again later."}
+  windowMs: env.REQUEST_RATE_LIMIT_TIME * 1000 * 10,
+  max: env.REQUEST_RATE_LIMIT,
+  message: {
+    success: false,
+    statusCode: 400,
+    message: 'Too many requests, please try again later.',
+  },
 });
 
 app.use(limiter);
@@ -51,13 +92,9 @@ app.get('/', (req: Request, res: Response) => {
   res.send('Welcome to the show');
 });
 
-// GLOBAL ROUTES
 app.use('/api/v1', router);
 
-// GLOBAL ERROR HANDLER
 app.use(globalErrorHandler);
-
-// NO ROUTE MATCH
 app.use(NotFound);
 
 export default app;

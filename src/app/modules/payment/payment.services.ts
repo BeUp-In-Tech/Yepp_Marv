@@ -28,7 +28,6 @@ import { redisClient } from '../../config/redis.config';
 import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
 import { anyCurrencyToUSD } from '../../utils/currencyConverter';
 import { importX509, jwtVerify } from 'jose';
- 
 
 // 1. Validate Android
 async function validateAndroid(productId: string, purchaseToken: string) {
@@ -45,7 +44,6 @@ async function validateAndroid(productId: string, purchaseToken: string) {
       credentials,
       scopes: ['https://www.googleapis.com/auth/androidpublisher'],
     });
-
 
     const publisher = google.androidpublisher({
       version: 'v3',
@@ -73,43 +71,39 @@ async function validateAndroid(productId: string, purchaseToken: string) {
 // 2. Validate iOS
 const validateIOS = async (signedTransactionInfo: string) => {
   try {
-
     // 1. SPLIT JWS INTO PARTS
-    const [headerB64] = signedTransactionInfo.split(".");
-    
+    const [headerB64] = signedTransactionInfo.split('.');
+
     // 2. DECODE HEADER (BASE64 -> JSON)
     const header = JSON.parse(
-      Buffer.from(headerB64, "base64").toString("utf-8")
+      Buffer.from(headerB64, 'base64').toString('utf-8')
     );
-    
-    
+
     if (!header.x5c || !header.x5c.length) {
-      throw new Error("Missing Apple certificate chain (x5c)");
+      throw new Error('Missing Apple certificate chain (x5c)');
     }
-    
+
     // 3. GET APPLE LEAF CERTIFICATE (FIRST CERT IN CHAIN)
     const leafCert = header.x5c[0];
-    
+
     /**
      * CONVERT CERTIFICATE TO PEM FORMAT
      * APPLE GIVES BASE63 DER -> WE CONVERT TO PEM
-    */
-   const pem = `-----BEGIN CERTIFICATE-----\n${leafCert}\n-----END CERTIFICATE-----`;
-   
-   // 4. IMPORT PUBLIC KEY FROM CERTIFICATE
-   const publicKey = await importX509(pem, "ES256");
+     */
+    const pem = `-----BEGIN CERTIFICATE-----\n${leafCert}\n-----END CERTIFICATE-----`;
 
-   // 5. VERIFY JWS SIGNATURE
-   const { payload } = await jwtVerify(signedTransactionInfo, publicKey, {
-     algorithms: ["ES256"],
+    // 4. IMPORT PUBLIC KEY FROM CERTIFICATE
+    const publicKey = await importX509(pem, 'ES256');
+
+    // 5. VERIFY JWS SIGNATURE
+    const { payload } = await jwtVerify(signedTransactionInfo, publicKey, {
+      algorithms: ['ES256'],
     });
-    
 
     // 6. (IMPORTANT) VALIDATE APP-SPECIFIC FIELDS
     if (payload.bundleId !== env.APPLE_IOS_CLIENT_ID) {
-      throw new Error("Invalid bundleId");
+      throw new Error('Invalid bundleId');
     }
-
 
     // 🎉 7. Return verified transaction
     return {
@@ -117,28 +111,44 @@ const validateIOS = async (signedTransactionInfo: string) => {
       data: payload,
     };
   } catch (error: any) {
-    console.error("Apple JWS verification failed:", error.message);
+    console.error('Apple JWS verification failed:', error.message);
 
     return {
       valid: false,
       error: error.message,
     };
   }
-}
-
+};
 
 const appleInAppPurchase = async (receipt: any) => {
-  const {valid, data} =await validateIOS(receipt.serverVerificationData);
+  const { valid, data } = await validateIOS(receipt.serverVerificationData);
+
+  // CHECK PAYMENT ALREADY USED BY SAME TRANSACTION ID
+  const existingPayemnt = await PaymentModel.findOne({
+    transaction_id: data?.transactionId as string,
+  });
+
+  if (existingPayemnt) {
+    console.log('Transaction already used!');
+    return;
+  }
+
+  const lockKey = `apple-iap:${data?.transactionId as string}`;
+  const locked = await redisClient.set(lockKey, '1', { NX: true, EX: 30 });
+  if (!locked) {
+    console.log('❌ Duplicate transaction processing blocked');
+    return;
+  }
 
   // MAKE SURE VALID TRANSACTION
   const isValidPurchase =
-  valid &&
-  data?.transactionReason === "PURCHASE" &&
-  data?.inAppOwnershipType === "PURCHASED" &&
-  data?.bundleId === env.APPLE_IOS_CLIENT_ID;
+    valid &&
+    data?.transactionReason === 'PURCHASE' &&
+    data?.inAppOwnershipType === 'PURCHASED' &&
+    data?.bundleId === env.APPLE_IOS_CLIENT_ID;
 
   if (isValidPurchase) {
-      // Calculate days based on ID
+    // Calculate days based on ID
     const days = (data?.productId as string)?.includes('7d')
       ? 7
       : (data?.productId as string)?.includes('14d')
@@ -150,13 +160,11 @@ const appleInAppPurchase = async (receipt: any) => {
       throw new AppError(StatusCodes.NOT_FOUND, 'Deal not found');
     }
 
-
     // CHECK ALREADY PROMOTED
     const alreadyPromoted = await Promotion.findOne({
       deal: receipt?.dealId,
       status: PromotionStatus.ACTIVE,
     });
-    
 
     if (alreadyPromoted) {
       console.log(
@@ -181,7 +189,10 @@ const appleInAppPurchase = async (receipt: any) => {
     try {
       session.startTransaction();
 
-      const price = await anyCurrencyToUSD(data?.price as number, data?.currency as string);
+      const price = await anyCurrencyToUSD(
+        data?.price as number,
+        data?.currency as string
+      );
 
       promotion = await Promotion.create(
         [
@@ -207,11 +218,11 @@ const appleInAppPurchase = async (receipt: any) => {
             user: getDeal.user,
             deal: receipt?.dealId,
             promotion: promotion[0]._id,
-            transaction_id: generateTransactionId(),
+            transaction_id: data?.transactionId as string,
             amount: price,
             currency: 'usd',
             voucher_applied: null,
-            provider: PaymentProvider.GOOGLE_PAY,
+            provider: PaymentProvider.APPLE_PAY,
             payment_status: PaymentStatus.PAID,
           },
         ],
@@ -227,6 +238,9 @@ const appleInAppPurchase = async (receipt: any) => {
 
       // ADD QUEUE JOB SCHEDULE
       scheduleDealJobs(getDeal);
+
+      console.log('[APPLE_IAP_SUCCESS]');
+      console.log('[APPLE_IAP_FAIL]');
 
       // REMOVE REDIS CACHE KEY
       setImmediate(async () => {
@@ -249,19 +263,16 @@ const appleInAppPurchase = async (receipt: any) => {
     }
   }
 
-  console.log("Not OK");
-  
-
-}
+  return;
+};
 
 // IN-APP-PURCHASE HANDLING
 const googleInAppPurchase = async (payload: any) => {
-    // VALIDATE ANDROID IN APP PURCHASE
-    const isValid = await validateAndroid(
-      payload.productId,
-      payload.serverVerificationData
-    );
-
+  // VALIDATE ANDROID IN APP PURCHASE
+  const isValid = await validateAndroid(
+    payload.productId,
+    payload.serverVerificationData
+  );
 
   // IF PURCHASE VALID -> UPDATE DATABASE
   if (isValid) {
@@ -282,7 +293,6 @@ const googleInAppPurchase = async (payload: any) => {
       deal: payload?.dealId,
       status: PromotionStatus.ACTIVE,
     });
-    
 
     if (alreadyPromoted) {
       console.log(
@@ -634,5 +644,5 @@ export const paymentService = {
   stripePay,
   stripeWebhookHandling,
   googleInAppPurchase,
-  appleInAppPurchase
+  appleInAppPurchase,
 };
