@@ -34,6 +34,8 @@ interface EnvInterfaces {
   EMAIL_HOST: string;
   EMAIL_PORT: string;
   EMAIL_USER: string;
+  EMAIL_FROM: string;
+  EMAIL_FROM_NAME: string;
   EMAIL_PASSWORD: string;
 
   GOOGLE_OAUTH_ID: string;
@@ -46,8 +48,6 @@ interface EnvInterfaces {
   APPLE_IOS_CLIENT_ID: string;
   APPLE_WEB_CLIENT_ID: string;
   APPLE_WEB_REDIRECT_URI: string;
-
-  APPLE_IN_APP_PURCHASE_SECRET: string;
 
   EXPRESS_SESSION_SECRET: string;
 
@@ -101,6 +101,8 @@ const loadEnvVaribles = (): EnvInterfaces => {
     'EMAIL_HOST',
     'EMAIL_PORT',
     'EMAIL_USER',
+    'EMAIL_FROM',
+    'EMAIL_FROM_NAME',
     'EMAIL_PASSWORD',
 
     'GOOGLE_OAUTH_SECRET',
@@ -113,9 +115,6 @@ const loadEnvVaribles = (): EnvInterfaces => {
     'APPLE_IOS_CLIENT_ID',
     'APPLE_WEB_CLIENT_ID',
     'APPLE_WEB_REDIRECT_URI',
-
-    'APPLE_IN_APP_PURCHASE_SECRET',
-
 
     'EXPRESS_SESSION_SECRET',
 
@@ -177,6 +176,8 @@ const loadEnvVaribles = (): EnvInterfaces => {
 
     EMAIL_PASSWORD: process.env.EMAIL_PASSWORD as string,
     EMAIL_USER: process.env.EMAIL_USER as string,
+    EMAIL_FROM: process.env.EMAIL_FROM as string,
+    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME as string,
     EMAIL_PORT: process.env.EMAIL_PORT as string,
     EMAIL_HOST: process.env.EMAIL_HOST as string,
 
@@ -190,9 +191,6 @@ const loadEnvVaribles = (): EnvInterfaces => {
     APPLE_IOS_CLIENT_ID: process.env.APPLE_IOS_CLIENT_ID as string,
     APPLE_WEB_CLIENT_ID: process.env.APPLE_WEB_CLIENT_ID as string,
     APPLE_WEB_REDIRECT_URI: process.env.APPLE_WEB_REDIRECT_URI as string,
-
-    APPLE_IN_APP_PURCHASE_SECRET: process.env.APPLE_IN_APP_PURCHASE_SECRET as string,
-
 
     EXPRESS_SESSION_SECRET: process.env.EXPRESS_SESSION_SECRET as string,
 

@@ -23,11 +23,11 @@ import { DealModel } from '../deal/deal.model';
 import { dealHandleQueue } from '../../queue/index.queue';
 import { JobName } from '../../queue/worker/deal.worker';
 import { google } from 'googleapis';
-import axios from 'axios';
 import { scheduleDealJobs } from '../../queue/job/deal.job';
 import { redisClient } from '../../config/redis.config';
 import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
 import { anyCurrencyToUSD } from '../../utils/currencyConverter';
+import { importX509, jwtVerify } from 'jose';
  
 
 // 1. Validate Android
@@ -71,59 +71,97 @@ async function validateAndroid(productId: string, purchaseToken: string) {
 }
 
 // 2. Validate iOS
-async function validateIOS(receipt: string) {
-  const response = await axios.post(
-    'https://buy.itunes.apple.com/verifyReceipt',
-    {
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        'receipt-data': receipt,
-        password: process.env.APPLE_SHARED_SECRET,
-      }),
-    }
-  );
+const validateIOS = async (signedTransactionInfo: string) => {
+  try {
 
-  const data = await response.data;
-  console.log('IOS', data);
-
-  // Sandbox fallback
-  if (data.status === 21007) {
-    const sandboxRes = await fetch(
-      'https://sandbox.itunes.apple.com/verifyReceipt',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          'receipt-data': receipt,
-          password: process.env.APPLE_SHARED_SECRET,
-        }),
-      }
+    console.log("IOS entered");
+    
+    // 1. SPLIT JWS INTO PARTS
+    const [headerB64] = signedTransactionInfo.split(".");
+    
+    // 2. DECODE HEADER (BASE64 -> JSON)
+    const header = JSON.parse(
+      Buffer.from(headerB64, "base64").toString("utf-8")
     );
+    
+    
+    if (!header.x5c || !header.x5c.length) {
+      throw new Error("Missing Apple certificate chain (x5c)");
+    }
+    
+    // 3. GET APPLE LEAF CERTIFICATE (FIRST CERT IN CHAIN)
+    const leafCert = header.x5c[0];
+    
+    /**
+     * CONVERT CERTIFICATE TO PEM FORMAT
+     * APPLE GIVES BASE63 DER -> WE CONVERT TO PEM
+    */
+   const pem = `-----BEGIN CERTIFICATE-----\n${leafCert}\n-----END CERTIFICATE-----`;
+   
+   // 4. IMPORT PUBLIC KEY FROM CERTIFICATE
+   const publicKey = await importX509(pem, "ES256");
+   
+   // 5. VERIFY JWS SIGNATURE
+   const { payload } = await jwtVerify(signedTransactionInfo, publicKey, {
+     algorithms: ["ES256"],
+    });
+    
+    console.log("IOS Payload: ", payload);
 
-    return (await sandboxRes.json()).status === 0;
+    // 6. (IMPORTANT) VALIDATE APP-SPECIFIC FIELDS
+    if (payload.bundleId !== env.APPLE_IOS_CLIENT_ID) {
+      throw new Error("Invalid bundleId");
+    }
+
+
+    // 🎉 7. Return verified transaction
+    return {
+      valid: true,
+      data: payload,
+    };
+  } catch (error: any) {
+    console.error("Apple JWS verification failed:", error.message);
+
+    return {
+      valid: false,
+      error: error.message,
+    };
+  }
+}
+
+
+const appleInAppPurchase = async (receipt: any) => {
+  const {valid, data} =await validateIOS(receipt.serverVerificationData);
+
+  // MAKE SURE VALID TRANSACTION
+  const isValidPurchase =
+  valid &&
+  data?.transactionReason === "PURCHASE" &&
+  data?.inAppOwnershipType === "PURCHASED" &&
+  data?.bundleId === process.env.APPLE_BUNDLE_ID;
+
+  console.log(isValidPurchase);
+  
+
+  if (isValidPurchase) {
+    console.log("OK");
   }
 
-  return data.status === 0;
+  console.log("Not OK");
+  
+
 }
 
 // IN-APP-PURCHASE HANDLING
-const inAppPurchase = async (payload: any) => {
-  console.log('Payload: ', payload);
-
-  let isValid = false;
-  if (payload.source === 'google_play') {
-    isValid = await validateAndroid(
+const googleInAppPurchase = async (payload: any) => {
+    // VALIDATE ANDROID IN APP PURCHASE
+    const isValid = await validateAndroid(
       payload.productId,
       payload.serverVerificationData
     );
-    console.log('Google verification: ', isValid);
-  }
 
-  if (payload.source === 'apple_play') {
-    isValid = await validateIOS(payload.verificationData);
-    console.log('Apple verification: ', isValid);
-  }
 
+  // IF PURCHASE VALID -> UPDATE DATABASE
   if (isValid) {
     // Calculate days based on ID
     const days = payload.productId.includes('7d')
@@ -142,6 +180,7 @@ const inAppPurchase = async (payload: any) => {
       deal: payload?.dealId,
       status: PromotionStatus.ACTIVE,
     });
+    
 
     if (alreadyPromoted) {
       console.log(
@@ -205,7 +244,7 @@ const inAppPurchase = async (payload: any) => {
 
       getDeal.promotedUntil = endDate;
       getDeal.isPromoted = true;
-      getDeal.activePromotion = promotion._id;
+      getDeal.activePromotion = promotion[0]._id;
       await getDeal.save({ session });
 
       await session.commitTransaction();
@@ -492,5 +531,6 @@ const stripeWebhookHandling = async (req: Request) => {
 export const paymentService = {
   stripePay,
   stripeWebhookHandling,
-  inAppPurchase,
+  googleInAppPurchase,
+  appleInAppPurchase
 };
