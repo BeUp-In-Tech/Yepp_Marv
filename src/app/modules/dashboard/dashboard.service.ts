@@ -187,16 +187,22 @@ const allVendorsStats = async (query: Record<string, string>) => {
         totalDeals: 1,
         createdAt: 1,
       },
-    },
-    // SEARCH (optional)
-    searchTerm ? {
+    }
+  );
+
+  // SEARCH (optional)
+  if (searchTerm) {
+    pipeline.push({
       $match: {
         $or: [
           { business_name: { $regex: searchTerm, $options: 'i' } },
           { 'vendor.user_name': { $regex: searchTerm, $options: 'i' } },
         ],
       },
-    } : {},
+    });
+  }
+
+  pipeline.push(
     {
       $sort: sortObj,
     },
@@ -212,15 +218,25 @@ const allVendorsStats = async (query: Record<string, string>) => {
   pipeline = [];
 
   const totalVendorsPromise = Shop.countDocuments();
-  const totalActiveVendorsPromise = Shop.countDocuments({ shop_approval: ShopApproval.APPROVED });
-  const totalPendingVendorsPromise = Shop.countDocuments({ shop_approval: ShopApproval.PENDING });
+  const totalActiveVendorsPromise = Shop.countDocuments({
+    shop_approval: ShopApproval.APPROVED,
+  });
+  const totalPendingVendorsPromise = Shop.countDocuments({
+    shop_approval: ShopApproval.PENDING,
+  });
 
-  const [vendorsStats, totalVendors, totalActiveVendors, totalPendingVendors] = await Promise.all([vendorsStatsPromise, totalVendorsPromise, totalActiveVendorsPromise, totalPendingVendorsPromise]);
+  const [vendorsStats, totalVendors, totalActiveVendors, totalPendingVendors] =
+    await Promise.all([
+      vendorsStatsPromise,
+      totalVendorsPromise,
+      totalActiveVendorsPromise,
+      totalPendingVendorsPromise,
+    ]);
 
   const final_data = {
-    summery: {totalVendors, totalActiveVendors, totalPendingVendors},
+    summery: { totalVendors, totalActiveVendors, totalPendingVendors },
     vendors: vendorsStats,
-  }
+  };
 
   // STORE DATA IN REDIS
   await redisClient.set(cacheKey, JSON.stringify(final_data), {
@@ -370,10 +386,35 @@ const dealsStats = async (query: Record<string, string>) => {
 
     {
       $addFields: {
-        views: { $ifNull: [{ $first: '$analytics.views' }, 0] },
-        impressions: { $ifNull: [{ $first: '$analytics.impressions' }, 0] },
         status: {
-          $cond: [{ $gt: ['$promotedUntil', new Date()] }, 'Active', 'Expired'],
+          $cond: [
+            {
+              $and: [
+                { $gt: ['$promotedUntil', new Date()] },
+                { $eq: ['$isPromoted', true] },
+              ],
+            },
+            'Active', // If promotedUntil > current date and isPromoted = true, set 'Active'
+            {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$isPromoted', false] },
+                    { $lt: ['$promotedUntil', new Date()] },
+                    { $ne: ['$activePromotion',  null] },
+                  ],
+                },
+                'Expired', // If isPromoted = false and promotedUntil < current date, set 'Expired'
+                {
+                  $cond: [
+                    { $eq: ['$activePromotion', null] },
+                    'New', // If activePromote is null, set 'New'
+                    'Unknown', // Default case (optional, in case none of the conditions match)
+                  ],
+                },
+              ],
+            },
+          ],
         },
       },
     },
