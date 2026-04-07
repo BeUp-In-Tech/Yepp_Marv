@@ -107,131 +107,97 @@ const allVendorsStats = async (query: Record<string, string>) => {
 
   let pipeline: any[] = [];
 
-  // STAGE 0: APPROVAL FILTER (early = faster)
-  if (approval) {
-    pipeline.push({
-      $match: {
-        shop_approval: approval,
-      },
-    });
-  }
-
   pipeline.push(
-    // STAGE 1: DEALS JOIN
-    {
-      $lookup: {
-        from: 'deals',
-        localField: '_id',
-        foreignField: 'shop',
-        as: 'deals',
-      },
+  {
+    $lookup: {
+      from: 'deals',
+      localField: '_id',
+      foreignField: 'shop',
+      as: 'deals',
     },
-
-    // STAGE 2
-    {
-      $addFields: {
-        totalDeals: { $size: '$deals' },
-      },
+  },
+  {
+    $addFields: {
+      totalDeals: { $size: { $ifNull: ['$deals', []] } },
     },
-
-    // STAGE 3: USER JOIN
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'vendor',
-        foreignField: '_id',
-        as: 'vendor',
-        pipeline: [
-          {
-            $project: { user_name: 1 },
-          },
-        ],
-      },
+  },
+  {
+    $lookup: {
+      from: 'users',
+      localField: 'vendor',
+      foreignField: '_id',
+      as: 'vendor',
+      pipeline: [
+        {
+          $project: { user_name: 1 },
+        },
+      ],
     },
-
-    { $unwind: '$vendor' }
-  );
-
-  // SEARCH (optional)
-  if (searchTerm) {
-    pipeline.push({
-      $match: {
-        $or: [
-          {
-            business_name: { $regex: searchTerm, $options: 'i' },
-          },
-          {
-            'vendor.user_name': {
-              $regex: searchTerm,
-              $options: 'i',
+  },
+  {
+    $unwind: {
+      path: '$vendor',
+      preserveNullAndEmptyArrays: true, // Keep docs even if no user is found
+    },
+  },
+  {
+    $lookup: {
+      from: 'payments',
+      let: { userId: '$vendor._id' },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: ['$user', '$$userId'] },
+                { $eq: ['$payment_status', 'PAID'] },
+              ],
             },
           },
-        ],
-      },
-    });
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: '$amount' },
+          },
+        },
+      ],
+      as: 'revenue',
+    },
+  },
+  {
+    $unwind: {
+      path: '$revenue',
+      preserveNullAndEmptyArrays: true,
+    },
+  },
+  {
+    $addFields: {
+      totalRevenue: { $ifNull: ['$revenue.totalRevenue', 0] },
+    },
+  },
+  {
+    $project: {
+      _id: 1,
+      business_name: 1,
+      totalRevenue: 1,
+      vendor: 1,
+      business_email: 1,
+      shop_approval: 1,
+      totalDeals: 1,
+      createdAt: 1,
+    },
+  },
+  {
+    $sort: sortObj,
+  },
+  {
+    $skip: skip,
+  },
+  {
+    $limit: limit,
   }
-
-  pipeline.push(
-    // STAGE: REVENUE
-    {
-      $lookup: {
-        from: 'payments',
-        let: { userId: '$vendor._id' },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $eq: ['$user', '$$userId'] },
-                  { $eq: ['$payment_status', 'PAID'] },
-                ],
-              },
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              totalRevenue: { $sum: '$amount' },
-            },
-          },
-        ],
-        as: 'revenue',
-      },
-    },
-
-    {
-      $unwind: {
-        path: '$revenue',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-
-    {
-      $addFields: {
-        totalRevenue: { $ifNull: ['$revenue.totalRevenue', 0] },
-      },
-    },
-
-    // FINAL PROJECTION
-    {
-      $project: {
-        _id: 1,
-        business_name: 1,
-        totalRevenue: 1,
-        vendor: 1,
-        business_email: 1,
-        shop_approval: 1,
-        totalDeals: 1,
-        createdAt: 1,
-      },
-    },
-
-    // ✅ DYNAMIC SORT
-    { $sort: sortObj },
-
-    { $skip: skip },
-    { $limit: limit }
-  );
+);
 
   const vendorsStatsPromise = await Shop.aggregate(pipeline);
   pipeline = [];
