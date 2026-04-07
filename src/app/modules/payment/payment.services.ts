@@ -250,10 +250,12 @@ const appleInAppPurchase = async (receipt: any) => {
         await invalidateAllMachineryCache('machinery:all:*'); // vendor stats cache invalidate (dashboard)
         await invalidateAllMachineryCache('all_vendors_dashboard:*'); // vendor stats cache invalidate (dashboard)
         await invalidateAllMachineryCache('latest_transaction:*'); // latest transaction list cache invalidate (dashboard)
+        await invalidateAllMachineryCache('recent_deals:*'); // recent deals list (dashboard)
         await invalidateAllMachineryCache(
           `my_deals-userId:${getDeal.user.toString()}:*`
         ); // get my deals cache invalidate (deal.service.ts)
       });
+
     } catch (error: any) {
       console.log('Deal promotion error from In App Purchase: ', error.message);
       await session.abortTransaction();
@@ -371,6 +373,7 @@ const googleInAppPurchase = async (payload: any) => {
         await redisClient.del(`last_one_year_revenue_trend`); // last one year revenue trend cached invalidate (dashboard api)
         await invalidateAllMachineryCache('machinery:all:*'); // vendor stats cache invalidate (dashboard)
         await invalidateAllMachineryCache('all_vendors_dashboard:*'); // vendor stats cache invalidate (dashboard)
+        await invalidateAllMachineryCache('recent_deals:*'); // recent deals list (dashboard)
         await invalidateAllMachineryCache('latest_transaction:*'); // latest transaction list cache invalidate (dashboard)
         await invalidateAllMachineryCache(
           `my_deals-userId:${getDeal.user.toString()}:*`
