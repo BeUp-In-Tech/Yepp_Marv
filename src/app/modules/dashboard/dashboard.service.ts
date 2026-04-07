@@ -108,96 +108,105 @@ const allVendorsStats = async (query: Record<string, string>) => {
   let pipeline: any[] = [];
 
   pipeline.push(
-  {
-    $lookup: {
-      from: 'deals',
-      localField: '_id',
-      foreignField: 'shop',
-      as: 'deals',
+    {
+      $lookup: {
+        from: 'deals',
+        localField: '_id',
+        foreignField: 'shop',
+        as: 'deals',
+      },
     },
-  },
-  {
-    $addFields: {
-      totalDeals: { $size: { $ifNull: ['$deals', []] } },
+    {
+      $addFields: {
+        totalDeals: { $size: { $ifNull: ['$deals', []] } },
+      },
     },
-  },
-  {
-    $lookup: {
-      from: 'users',
-      localField: 'vendor',
-      foreignField: '_id',
-      as: 'vendor',
-      pipeline: [
-        {
-          $project: { user_name: 1 },
-        },
-      ],
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'vendor',
+        foreignField: '_id',
+        as: 'vendor',
+        pipeline: [
+          {
+            $project: { user_name: 1 },
+          },
+        ],
+      },
     },
-  },
-  {
-    $unwind: {
-      path: '$vendor',
-      preserveNullAndEmptyArrays: true, // Keep docs even if no user is found
+    {
+      $unwind: {
+        path: '$vendor',
+        preserveNullAndEmptyArrays: true, // Keep docs even if no user is found
+      },
     },
-  },
-  {
-    $lookup: {
-      from: 'payments',
-      let: { userId: '$vendor._id' },
-      pipeline: [
-        {
-          $match: {
-            $expr: {
-              $and: [
-                { $eq: ['$user', '$$userId'] },
-                { $eq: ['$payment_status', 'PAID'] },
-              ],
+    {
+      $lookup: {
+        from: 'payments',
+        let: { userId: '$vendor._id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$user', '$$userId'] },
+                  { $eq: ['$payment_status', 'PAID'] },
+                ],
+              },
             },
           },
-        },
-        {
-          $group: {
-            _id: null,
-            totalRevenue: { $sum: '$amount' },
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: '$amount' },
+            },
           },
-        },
-      ],
-      as: 'revenue',
+        ],
+        as: 'revenue',
+      },
     },
-  },
-  {
-    $unwind: {
-      path: '$revenue',
-      preserveNullAndEmptyArrays: true,
+    {
+      $unwind: {
+        path: '$revenue',
+        preserveNullAndEmptyArrays: true,
+      },
     },
-  },
-  {
-    $addFields: {
-      totalRevenue: { $ifNull: ['$revenue.totalRevenue', 0] },
+    {
+      $addFields: {
+        totalRevenue: { $ifNull: ['$revenue.totalRevenue', 0] },
+      },
     },
-  },
-  {
-    $project: {
-      _id: 1,
-      business_name: 1,
-      totalRevenue: 1,
-      vendor: 1,
-      business_email: 1,
-      shop_approval: 1,
-      totalDeals: 1,
-      createdAt: 1,
+    {
+      $project: {
+        _id: 1,
+        business_name: 1,
+        totalRevenue: 1,
+        vendor: 1,
+        business_email: 1,
+        shop_approval: 1,
+        totalDeals: 1,
+        createdAt: 1,
+      },
     },
-  },
-  {
-    $sort: sortObj,
-  },
-  {
-    $skip: skip,
-  },
-  {
-    $limit: limit,
-  }
-);
+    // SEARCH (optional)
+    searchTerm ? {
+      $match: {
+        $or: [
+          { business_name: { $regex: searchTerm, $options: 'i' } },
+          { 'vendor.user_name': { $regex: searchTerm, $options: 'i' } },
+        ],
+      },
+    } : {},
+    {
+      $sort: sortObj,
+    },
+    {
+      $skip: skip,
+    },
+    {
+      $limit: limit,
+    }
+  );
 
   const vendorsStatsPromise = await Shop.aggregate(pipeline);
   pipeline = [];
@@ -210,7 +219,7 @@ const allVendorsStats = async (query: Record<string, string>) => {
 
   const final_data = {
     summery: {totalVendors, totalActiveVendors, totalPendingVendors},
-    vendors: vendorsStats
+    vendors: vendorsStats,
   }
 
   // STORE DATA IN REDIS
@@ -219,7 +228,6 @@ const allVendorsStats = async (query: Record<string, string>) => {
   });
 
   // Return data
-
   return final_data;
 };
 
