@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -45,9 +44,6 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(safeSanitizeMiddleware);
 
-console.log('RedisStore import type:', typeof RedisStore);
-console.log('redisClient exists:', !!redisClient);
-console.log('redisClient isOpen:', redisClient.isOpen);
 
 // Redis session store
 const redisStore = new RedisStore({
@@ -55,7 +51,6 @@ const redisStore = new RedisStore({
   prefix: 'yeppads:sess:',
 });
 
-console.log('redisStore created:', !!redisStore);
 
 app.use(
   session({

@@ -80,7 +80,7 @@ const forgetPasswordService = async (email: string) => {
   // SENDING OTP TO EMAIL
   await sendEmail({
     to: user.email,
-    subject: 'LinkUp:Password Reset OTP',
+    subject: 'Yepp Ads:Password Reset OTP',
     templateName: 'forgetPassword_otp_send',
     templateData: {
       name: user.user_name,
