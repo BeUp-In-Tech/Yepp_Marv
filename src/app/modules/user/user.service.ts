@@ -133,11 +133,15 @@ const getMeSerevice = async (userId: string) => {
 };
 
 
-// 4. SEND VERFICATION OTP
+// 4. SEND VERIFICATION OTP
 const sendVerificationOtpService = async (email: string) => {
   const user = (await User.findOne({ email }).select(
-    'user_name email'
+    'user_name email isVerified'
   )) as Partial<IUser>;
+
+  if (user.isVerified) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "Profile already verified!")
+  }
 
   // Generate OTP
   const otp = randomOTPGenerator(100000, 999999);
