@@ -295,11 +295,12 @@ const dealsStats = async (query: Record<string, string>) => {
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
 
+  // SORTING MERGE
   const sortBy = (query.sortBy as string) || 'createdAt';
-  const sortOrder = query.sortOrder === 'asc' ? 1 : -1;
-
+  const sortOrder = sortBy === 'createdAt' ? 1 : -1;
+  const removeExtraSymbols = sortBy.startsWith('-') ? sortBy.slice(1) : sortBy;
   const sortStage: any = {};
-  sortStage[sortBy] = sortOrder;
+  sortStage[removeExtraSymbols] = sortOrder;
 
   const cacheKey = `deals_stats:${query.searchTerm || ''}_${page}_${limit}_${sortBy}_${sortOrder}`;
   const getCachedData = await redisClient.get(cacheKey);
@@ -309,7 +310,7 @@ const dealsStats = async (query: Record<string, string>) => {
     return JSON.parse(getCachedData);
   }
 
-  // DATABASE QUERY
+  // Search Match (Filtering)
   const searchMatch = {
     $or: [
       { title: { $regex: query.searchTerm || '', $options: 'i' } },
@@ -330,7 +331,7 @@ const dealsStats = async (query: Record<string, string>) => {
   };
 
   const result = await DealModel.aggregate([
-    // STAGE 1: JOIN WITH VIEW IMPRESSION
+    // Step 2: Lookup related data (views_impressions, shops, and categories)
     {
       $lookup: {
         from: 'views_impressions',
@@ -344,16 +345,8 @@ const dealsStats = async (query: Record<string, string>) => {
           {
             $group: {
               _id: null,
-              views: {
-                $sum: {
-                  $cond: [{ $eq: ['$type', 'view'] }, 1, 0],
-                },
-              },
-              impressions: {
-                $sum: {
-                  $cond: [{ $eq: ['$type', 'impression'] }, 1, 0],
-                },
-              },
+              views: { $sum: { $cond: [{ $eq: ['$type', 'view'] }, 1, 0] } },
+              impressions: { $sum: { $cond: [{ $eq: ['$type', 'impression'] }, 1, 0] } },
             },
           },
         ],
@@ -361,7 +354,7 @@ const dealsStats = async (query: Record<string, string>) => {
       },
     },
 
-    // JOIN WITH SHOP
+    // Lookup related shop data
     {
       $lookup: {
         from: 'shops',
@@ -371,7 +364,7 @@ const dealsStats = async (query: Record<string, string>) => {
       },
     },
 
-    // JOIN WITH CATEGORY
+    // Lookup related category data
     {
       $lookup: {
         from: 'categories',
@@ -381,44 +374,34 @@ const dealsStats = async (query: Record<string, string>) => {
       },
     },
 
+    // Step 3: Unwind the shop and category
     { $unwind: { path: '$shop', preserveNullAndEmptyArrays: true } },
     { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
 
+    // Step 4: Add dynamic status field and analytics data
     {
       $addFields: {
         status: {
           $cond: [
-            {
-              $and: [
-                { $gt: ['$promotedUntil', new Date()] },
-                { $eq: ['$isPromoted', true] },
-              ],
-            },
-            'Active', // If promotedUntil > current date and isPromoted = true, set 'Active'
+            { $and: [{ $gt: ['$promotedUntil', new Date()] }, { $eq: ['$isPromoted', true] }] },
+            'Active',
             {
               $cond: [
+                { $and: [{ $eq: ['$isPromoted', false] }, { $lt: ['$promotedUntil', new Date()] }, { $ne: ['$activePromotion', null] }] },
+                'Expired',
                 {
-                  $and: [
-                    { $eq: ['$isPromoted', false] },
-                    { $lt: ['$promotedUntil', new Date()] },
-                    { $ne: ['$activePromotion',  null] },
-                  ],
-                },
-                'Expired', // If isPromoted = false and promotedUntil < current date, set 'Expired'
-                {
-                  $cond: [
-                    { $eq: ['$activePromotion', null] },
-                    'New', // If activePromote is null, set 'New'
-                    'Unknown', // Default case (optional, in case none of the conditions match)
-                  ],
+                  $cond: [{ $eq: ['$activePromotion', null] }, 'New', 'Unknown'],
                 },
               ],
             },
           ],
         },
+        views: { $ifNull: [{ $first: '$analytics.views' }, 0] },
+        impressions: { $ifNull: [{ $first: '$analytics.impressions' }, 0] },
       },
     },
 
+    // Step 5: Create summary stage (total deals, views, impressions)
     {
       $facet: {
         summary: [
@@ -437,20 +420,22 @@ const dealsStats = async (query: Record<string, string>) => {
           },
         ],
 
+        // Step 6: Deals with pagination
         deals: [
-          ...(query.searchTerm ? [{ $match: searchMatch }] : []),
+          { $match: searchMatch },
           { $sort: sortStage },
           { $skip: skip },
           { $limit: limit },
           {
             $project: {
               title: 1,
-              vendor: '$shop.business_name',
+              business_name: '$shop.business_name',
               category_name: '$category.category_name',
-              impressions: 1,
               views: 1,
+              impressions: 1,
               status: 1,
               expiry: '$promotedUntil',
+              createdAt: 1
             },
           },
         ],
@@ -458,9 +443,11 @@ const dealsStats = async (query: Record<string, string>) => {
     },
   ]);
 
+  // Get the summary and deals data
   const data = result[0];
 
-  const total = await DealModel.countDocuments();
+  // Calculate total count (including the search filter)
+  const total = data.summary.length > 0 ? data.summary[0].totalDeals : 0;
 
   const meta = {
     page,
@@ -471,18 +458,20 @@ const dealsStats = async (query: Record<string, string>) => {
 
   const final_data = {
     meta,
-    data,
+    data: data.deals,
+    summary: data.summary[0], // Including summary in the response
   };
 
-  //   // STORE DATA IN REDIS
+  // Cache the result in Redis for future requests
   await redisClient.set(cacheKey, JSON.stringify(final_data), {
     EX: 60, // 1 min
   });
 
-  // Return data
-
+  // Return the data with pagination and summary
   return final_data;
 };
+
+ 
 
 // 5. DASHBOARD ANALYTICS TOTAL
 const dashboardAnalyticsTotal = async () => {
