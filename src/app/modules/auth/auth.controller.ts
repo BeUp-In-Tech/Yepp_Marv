@@ -10,6 +10,11 @@ import { JwtPayload } from 'jsonwebtoken';
 import env from '../../config/env';
 import { SendResponse } from '../../utils/SendResponse';
 import { authService } from './auth.service';
+import {
+  verifyAppleIdToken,
+} from './auth.utility';
+import User from '../user/user.model';
+import { IsActiveUser, Role } from '../user/user.interface';
 
 // REGISTER WITH GOOGLE
 const googleRegister = CatchAsync(
@@ -53,51 +58,193 @@ const googleCallback = CatchAsync(
   }
 );
 
-// APPLE LOGIN
+// APPLE CALLBACK
 const appleCallback = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate(
-      'apple',
-      async function (err: any, user: any, info: string) {
+    
+    const data = req.body;
+    const authorizationCode = data?.code;
+    const id_token = data?.id_token;
 
-        if (err) {
-          if (err == 'AuthorizationError') {
-            res.send(
-              'Oops! Looks like you didn\'t allow the app to proceed. Please sign in again! <br /> \
-				<a href="/login">Sign in with Apple</a>'
-            );
-          } else if (err == 'TokenError') {
-            res.send(
-              'Oops! Couldn\'t get a valid token from Apple\'s servers! <br /> \
-				<a href="/login">Sign in with Apple</a>'
-            );
-          } else {
-            res.send(err);
-          }
+
+    if (!authorizationCode) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        'Apple authorization code is required'
+      );
+    }
+
+    const clientId = env.APPLE_WEB_CLIENT_ID;
+    if (
+      ![env.APPLE_IOS_CLIENT_ID, env.APPLE_WEB_CLIENT_ID].includes(clientId)
+    ) {
+      throw new AppError(StatusCodes.BAD_REQUEST, 'Invalid Apple client id');
+    }
+
+    // const identityToken = tokenResponse?.id_token as string;
+    const identityToken = id_token as string;
+    if (!identityToken) {
+      throw new AppError(
+        StatusCodes.UNAUTHORIZED,
+        'Apple identity token is missing after code exchange'
+      );
+    }
+
+    // Verify Apple identity token signature & claims
+    const payload = await verifyAppleIdToken(identityToken, clientId);
+    
+
+    // payload.sub is Apple unique user ID
+    const appleUserId = payload?.sub;
+    if (!appleUserId) {
+      throw new AppError(
+        StatusCodes.UNAUTHORIZED,
+        'Apple user id not found in token'
+      );
+    }
+
+    const userEmail = (payload?.email || '').toLowerCase().trim();
+
+    let user = await User.findOne({
+      auths: {
+        $elemMatch: {
+          provider: 'apple',
+          providerId: appleUserId,
+        },
+      },
+    });
+
+    if (!user && userEmail) {
+      user = await User.findOne({ email: userEmail });
+      if (user) {
+        const alreadyLinked = user.auths?.some(
+          (provider) =>
+            provider.provider === 'apple' && provider.providerId === appleUserId
+        );
+
+        if (!alreadyLinked) {
+          user.auths = user.auths || [];
+          user.auths.push({
+            provider: 'apple',
+            providerId: appleUserId,
+          });
         }
-  
-        const token = await createUserTokens(user);
-
-        const userAgent = req.headers['user-agent'] || '';
-
-        const isAndroid = /android/i.test(userAgent);
-        const isIOS = /iphone|ipad|ipod/i.test(userAgent);
-
-        if (isAndroid || isIOS) {
-          res.redirect(
-            `${env.DEEP_LINK}/auth/apple?access=${token.accessToken}&refresh=${token.refreshToken}`
-          );
-        } else {
-          res.redirect(
-            `${env.FRONTEND_URL}/shop-overview?access=${token.accessToken}&refresh=${token.refreshToken}`
-          );
-        }
+        user.isVerified = true;
+        await user.save();
       }
-    )(req, res, next);
+    }
+
+    if (!user) {
+      if (!userEmail) {
+        throw new AppError(
+          StatusCodes.BAD_REQUEST,
+          "Apple didn't return email. Please share email on first Apple sign-in and retry."
+        );
+      }
+
+
+
+      // IF FIRST LOGIN AND APPLE PROVIDED USER INFO
+      const rawUser = req.body?.user;
+ 
+      let userInfo: Partial<{
+        email: string;
+        name: { firstName: string; lastName: string };
+      }> = {};
+
+      if (typeof rawUser === "string" && rawUser.trim() !== "") {
+        try {
+          userInfo = JSON.parse(rawUser);
+        } catch {
+          userInfo = {}; // prevent crash
+        }
+      } else if (rawUser && typeof rawUser === "object") {
+        userInfo = rawUser; // if already parsed object
+      }
+
+
+      // safe reads (fallback to saved DB user if needed)
+      const email = userInfo?.email ;
+      const firstName = userInfo.name?.firstName; 
+      const lastName = userInfo.name?.lastName;
+
+
+      const userNameFromRequest =
+        typeof `${firstName} ${lastName}` === 'string'
+          ? `${firstName} ${lastName}`
+          : '';
+
+      const fallbackName = userEmail ? userEmail.split('@')[0] : email?.split('@')[0] || 'Apple User';
+      const name = userInfo.name ? userNameFromRequest : fallbackName;
+
+      user = await User.create({
+        user_name: name,
+        email: userEmail || email,
+        role: Role.VENDOR,
+        isVerified: true,
+        auths: [
+          {
+            provider: 'apple',
+            providerId: appleUserId,
+          },
+        ],
+      });
+    }
+    
+
+    if (user.isDeleted) {
+      throw new AppError(StatusCodes.BAD_REQUEST, 'User was deleted!');
+    }
+
+    if (
+      user.isActive === IsActiveUser.INACTIVE ||
+      user.isActive === IsActiveUser.BLOCKED
+    ) {
+      throw new AppError(StatusCodes.BAD_REQUEST, `User is ${user.isActive}`);
+    }
+
+    const userTokens = await createUserTokens({
+      _id: user._id,
+      email: user.email,
+      role: user.role,
+    } as JwtPayload);
+
+
+
+    const userAgent = req.headers['user-agent'] || '';
+
+    const isAndroid = /android/i.test(userAgent);
+    const isIOS = /iphone|ipad|ipod/i.test(userAgent);
+
+    if (isAndroid || isIOS) {
+      res.redirect(
+        `${env.DEEP_LINK}/auth/apple?access=${userTokens.accessToken}&refresh=${userTokens.refreshToken}`
+      );
+    } else {
+      res.redirect(
+        `${env.FRONTEND_URL}/shop-overview?access=${userTokens.accessToken}&refresh=${userTokens.refreshToken}`
+      );
+    }
   }
 );
 
-// CREDENTIAL LOGIN
+// APPLE LOGIN
+const appleLogin = CatchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { code, user_name, email } = req.body;
+    const result = await authService.appleLoginService(code, user_name, email);
+ 
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Authentication success',
+      data: result,
+    });
+  }
+);
+
+
 const credentialsLogin = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate('local', async (err: any, user: any, info: any) => {
@@ -210,4 +357,5 @@ export const authController = {
   resetPassword,
   getNewAccessToken,
   appleCallback,
+  appleLogin
 };

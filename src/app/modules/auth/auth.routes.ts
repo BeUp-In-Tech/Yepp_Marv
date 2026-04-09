@@ -28,7 +28,7 @@ router.get(
 );
 
 // APPLE LOGIN
-router.get("/apple/apple_login", passport.authenticate('apple'));
+router.post("/apple",  authController.appleLogin);
 router.post("/apple/callback",  authController.appleCallback);
 
 

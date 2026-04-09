@@ -149,6 +149,7 @@ const getShopDetailsService = async (shopId?: string, my_shop?: string) => {
   }
 
   const shopQuery: Record<string, any> = {};
+  
 
   if (my_shop) {
     shopQuery.vendor = new Types.ObjectId(my_shop);
@@ -182,6 +183,11 @@ const getShopDetailsService = async (shopId?: string, my_shop?: string) => {
     },
   }
 ]);
+
+
+if (isShopExist.length <=0) {
+  throw new AppError(StatusCodes.NOT_FOUND, "Shop not found!");
+}
 
 
   // STORE DATA IN REDIS

@@ -5,11 +5,14 @@ import bcrypt from 'bcrypt';
 import { randomOTPGenerator } from '../../utils/randomOTPGenerator';
 import { redisClient } from '../../config/redis.config';
 import { sendEmail } from '../../utils/sendMail';
-import { IsActiveUser } from '../user/user.interface';
+import { IsActiveUser, Role } from '../user/user.interface';
 import env from '../../config/env';
 import jwt, { JwtPayload, SignOptions } from 'jsonwebtoken';
 import { verifyToken } from '../../utils/jwt';
 import { createUserTokens } from '../../utils/user.tokens';
+import axios from 'axios';
+import qs from 'qs';
+import { AppleTokenExchangeResponse, generateAppleClientSecret, verifyAppleIdToken } from './auth.utility';
 
 
 // CHANGE PASSWORD
@@ -208,107 +211,158 @@ const getNewAccessTokenService = async (refreshToken: string) => {
 };
 
 // =============================APPLE LOGIN HANDLING=========================
+const appleLoginService = async (code: string, user_name: string, email: string) => {
 
-// // Apple client secret generator (JWT signed with Apple private key)
-// const generateAppleClientSecret = async () => {
-//   const privateKey = env.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n');
-//   const clientSecret = jwt.sign(
-//     {
-//       iss: env.APPLE_TEAM_ID,
-//       iat: Math.floor(Date.now() / 1000),
-//       exp: Math.floor(Date.now() / 1000) + 15777000, // 6 months
-//       aud: 'https://appleid.apple.com',
-//       sub: env.APPLE_IOS_CLIENT_ID,
-//     },
-//     privateKey,
-//     { algorithm: 'ES256', keyid: env.APPLE_KEY_ID }
-//   );
-//   return clientSecret;
-// };
+  const authorizationCode =  code;
+  if (!authorizationCode) {
+    throw new AppError(StatusCodes.BAD_REQUEST, 'Apple authorization code is required');
+  }
 
-// // Exchange code for tokens
-// const appleLoginService = async (code: string, user_name: string, email: string) => {
-//   const clientSecret = await generateAppleClientSecret();
+  const clientId = env.APPLE_IOS_CLIENT_ID;
+  if (![env.APPLE_IOS_CLIENT_ID, env.APPLE_WEB_CLIENT_ID].includes(clientId)) {
+    throw new AppError(StatusCodes.BAD_REQUEST, 'Invalid Apple client id');
+  }
 
-//   const tokenResponse = await axios.post(
-//     'https://appleid.apple.com/auth/token',
-//     qs.stringify({
-//       grant_type: 'authorization_code',
-//       code,
-//       client_id: env.APPLE_IOS_CLIENT_ID,
-//       client_secret: clientSecret,
-//       redirect_uri: env.APPLE_WEB_REDIRECT_URI,
-//     }),
-//     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-//   );
+  const clientSecret = await generateAppleClientSecret(clientId);
+  const tokenPayload: Record<string, string> = {
+    grant_type: 'authorization_code',
+    code: authorizationCode,
+    client_id: clientId,
+    client_secret: clientSecret,
+  };
 
-//   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-//   const { id_token, access_token } = tokenResponse.data;
+  if (clientId === env.APPLE_WEB_CLIENT_ID) {
+    tokenPayload.redirect_uri = env.APPLE_WEB_REDIRECT_URI;
+  }
 
-//   // Decode Apple JWT
-//   const decoded = jwt.decode(id_token) as JwtPayload;
- 
- 
-//   console.log("decoded token: ", decoded)
-//   console.log({
-//   code,
-//   user_name,
-//   email
-//  });
- 
+  let tokenResponse: AppleTokenExchangeResponse;
+  try {
+    const tokenResp = await axios.post<AppleTokenExchangeResponse>(
+      'https://appleid.apple.com/auth/token',
+      qs.stringify(tokenPayload),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+    tokenResponse = tokenResp.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const appleError = (error.response?.data as { error?: string })?.error;
+      const message = appleError
+        ? `Apple token exchange failed: ${appleError}`
+        : 'Apple token exchange failed';
+      throw new AppError(StatusCodes.UNAUTHORIZED, message);
+    }
+    throw error;
+  }
 
-//   // response
-//   /* {
 
-//   iss: 'https://appleid.apple.com',
-//   aud: 'agency.beuptech.yepp',
-//   exp: 1773662563,
-//   iat: 1773576163,
-//   sub: '001452.2b850f37f0784c329308e5cee10e499a.0418',
-//   at_hash: 'pcIwH0NtGLRLiWdq8pgHrg',
-//   email: 'avizitrx@protonmail.com',
-//   email_verified: true,
-//   auth_time: 1773576162,
-//   nonce_supported: true
-// }
+  const identityToken = tokenResponse?.id_token as string;
+  if (!identityToken) {
+    throw new AppError(
+      StatusCodes.UNAUTHORIZED,
+      'Apple identity token is missing after code exchange'
+    );
+  }
 
-// */
-//   // Example: { sub: 'appleUserId', email: 'user@example.com', ... }
-//   // const userCreate = await User.create(decoded);
+  // Verify Apple identity token signature & claims
+  const payload = await verifyAppleIdToken(identityToken, clientId);
 
-//   // Create your own JWT
-//   // const appToken = jwt.sign({ _id: userCreate._id }, env.JWT_ACCESS_SECRET, { expiresIn: '7d' });
+  // payload.sub is Apple unique user ID
+  const appleUserId = payload?.sub;
+  if (!appleUserId) {
+    throw new AppError(StatusCodes.UNAUTHORIZED, 'Apple user id not found in token');
+  }
 
-//   // return { token: appToken, user: userCreate };
-//   const userPayload: IUser = {
-//     user_name,
-//     email: decoded?.email,
-//     isVerified: decoded?.email_verified,
-//     role: Role.VENDOR,
-//     auths: [{ provider: 'apple', providerId: decoded?.sub as string }],
-//     deviceTokens: [],
-//   };
+  const userEmail = (payload?.email || email || '').toLowerCase().trim();
 
-//   // console.log(userPayload);
-  
+  let user = await User.findOne({
+    auths: {
+      $elemMatch: {
+        provider: 'apple',
+        providerId: appleUserId,
+      },
+    },
+  });
 
-//   const userExist = await User.findOne({ email: decoded?.email });
+  if (!user && userEmail) {
+    user = await User.findOne({ email: userEmail });
+    if (user) {
+      const alreadyLinked = user.auths?.some(
+        (provider) =>
+          provider.provider === 'apple' && provider.providerId === appleUserId
+      );
 
-//   if (userExist) {
-//     const tokens = await createUserTokens(userExist);
-//     return tokens;
-//   }
+      if (!alreadyLinked) {
+        user.auths = user.auths || [];
+        user.auths.push({
+          provider: 'apple',
+          providerId: appleUserId,
+        });
+      }
+      user.isVerified = true;
+      await user.save();
+    }
+  }
 
-//   const createUser = await User.create(userPayload);
+  if (!user) {
+    if (!userEmail) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        "Apple didn't return email. Please share email on first Apple sign-in and retry."
+      );
+    }
 
-//   const tokens = await createUserTokens(createUser);
-//   return tokens;
-// };
+    const userNameFromRequest = typeof user_name === 'string' ? user_name.trim() : '';
+    const fallbackName = userEmail.split('@')[0] || 'Apple User';
+
+    user = await User.create({
+      user_name: userNameFromRequest || fallbackName,
+      email: userEmail,
+      role: Role.VENDOR,
+      isVerified: true,
+      auths: [
+        {
+          provider: 'apple',
+          providerId: appleUserId,
+        },
+      ],
+    });
+  }
+
+  if (user.isDeleted) {
+    throw new AppError(StatusCodes.BAD_REQUEST, 'User was deleted!');
+  }
+
+  if (
+    user.isActive === IsActiveUser.INACTIVE ||
+    user.isActive === IsActiveUser.BLOCKED
+  ) {
+    throw new AppError(StatusCodes.BAD_REQUEST, `User is ${user.isActive}`);
+  }
+
+  const userTokens = await createUserTokens({
+    _id: user._id,
+    email: user.email,
+    role: user.role,
+  } as JwtPayload);
+
+
+  return {
+    accessToken: userTokens.accessToken,
+    refreshToken: userTokens.refreshToken,
+    user: {
+      _id: user._id,
+      user_name: user.user_name,
+      email: user.email,
+      role: user.role,
+    },
+  };
+};
 
 export const authService = {
   changePasswordService,
   forgetPasswordService,
   verifyForgetPasswordOTPService,
   resetPasswordService,
-  getNewAccessTokenService
+  getNewAccessTokenService,
+  appleLoginService
 };
