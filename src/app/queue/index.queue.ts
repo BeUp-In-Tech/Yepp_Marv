@@ -8,7 +8,8 @@ export const connection = new IORedis({
 });
 
 
-// QUEE LIST
+// QUEUE LIST
 export const mailQueue = new Queue('emailSendQueue', { connection });
 export const notificationQueue = new Queue('notificationQueue', { connection });
 export const dealHandleQueue = new Queue('dealHandleQueue', { connection });
+export const imageDeleteQueue = new Queue('imageDeleteQueue', { connection });

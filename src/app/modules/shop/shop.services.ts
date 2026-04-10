@@ -8,7 +8,7 @@ import { Role } from '../user/user.interface';
 import mongoose, { Types } from 'mongoose';
 import { OutletModel } from '../outlet/outlet.model';
 import { JwtPayload } from 'jsonwebtoken';
-import { asyncSingleImageDelete } from '../../utils/singleImageDeleteAsync';
+import { addImageDeleteJob } from '../../utils/imageDeleteJobAdd';
 import { redisClient } from '../../config/redis.config';
 import { NotificationType } from '../notification/notification.interface';
 import env from '../../config/env';
@@ -39,7 +39,7 @@ const createShopService = async (
   const isUser = await User.findById(user.userId);
   if (!isUser) {
     if (payload.shop.business_logo) {
-      await asyncSingleImageDelete(payload.shop.business_logo); // Delete image first
+      await addImageDeleteJob([payload.shop.business_logo]); // Delete image first
     }
     throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
@@ -47,7 +47,7 @@ const createShopService = async (
   // CHECK USER VERIFIED
   if (!isUser.isVerified) {
     if (payload.shop.business_logo) {
-      await asyncSingleImageDelete(payload.shop.business_logo); // Delete image first
+      await addImageDeleteJob([payload.shop.business_logo]); // Delete image first
     }
 
     // Throw Error
@@ -62,7 +62,7 @@ const createShopService = async (
     .lean();
   if (alreadyHasShop) {
     if (payload.shop.business_logo) {
-      await asyncSingleImageDelete(payload.shop.business_logo); // Delete image first
+      await addImageDeleteJob([payload.shop.business_logo]); // Delete image first
     }
 
     // THROW Error
@@ -283,7 +283,7 @@ const updateShopService = async (
   setImmediate(async () => {
     // Delete old business logo
     if (payload.business_logo && shop.business_logo) {
-      await asyncSingleImageDelete(shop.business_logo);
+      await addImageDeleteJob([shop.business_logo]);
     }
   });
 
@@ -582,3 +582,4 @@ export const shopServices = {
   getDealAnalyticsService,
   getPrevious3YearsMonthlyAnalytics
 };
+

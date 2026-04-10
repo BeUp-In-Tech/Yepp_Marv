@@ -6,13 +6,12 @@ import { Shop } from '../shop/shop.model';
 import { Role } from '../user/user.interface';
 import AppError from '../../errorHelpers/AppError';
 import StatusCodes from 'http-status-codes';
-import { deleteImageFromCLoudinary } from '../../config/cloudinary.config';
 import { IDeal } from './deal.interface';
 import { DealModel } from './deal.model';
 import { Category } from '../categories/categories.model';
 import { QueryBuilder } from '../../utils/QueryBuilder';
 import { OutletModel } from '../outlet/outlet.model';
-import { asyncMultipleImageDelete, asyncSingleImageDelete } from '../../utils/singleImageDeleteAsync';
+import { addImageDeleteJob } from '../../utils/imageDeleteJobAdd';
 import { ShopApproval } from '../shop/shop.interface';
 import { redisClient } from '../../config/redis.config';
 import { Views_Impressions } from '../views_impression/vi.model';
@@ -32,7 +31,7 @@ const createDealsService = async (params: {
   // CHECK USER IS VENDOR
   if (user.role !== Role.VENDOR) {
     if (payload.images) {
-      await asyncMultipleImageDelete(payload.images);
+      await addImageDeleteJob(payload.images);
     }
     throw new AppError(StatusCodes.FORBIDDEN, 'Only vendor can create deals');
   }
@@ -43,15 +42,15 @@ const createDealsService = async (params: {
   // THROW ERROR IF SHOP IS NOT FOUND
   if (!isShopExist) {
     if (payload.images) {
-      await asyncMultipleImageDelete(payload.images);
+      await addImageDeleteJob(payload.images);
     }
 
     if (payload.coupon_option.qr) {
-      await asyncSingleImageDelete(payload.coupon_option.qr);
+      await addImageDeleteJob([payload.coupon_option.qr]);
     }
 
     if (payload.coupon_option.upc) {
-      await asyncSingleImageDelete(payload.coupon_option.upc);
+      await addImageDeleteJob([payload.coupon_option.upc]);
     }
 
     throw new AppError(
@@ -63,15 +62,15 @@ const createDealsService = async (params: {
   // THROW ERROR IF SHOP ALREADY REJECTED
   if (isShopExist.shop_approval === ShopApproval.REJECTED) {
     if (payload.images) {
-      await asyncMultipleImageDelete(payload.images);
+      await addImageDeleteJob(payload.images);
     }
 
     if (payload.coupon_option.qr) {
-      await asyncSingleImageDelete(payload.coupon_option.qr);
+      await addImageDeleteJob([payload.coupon_option.qr]);
     }
 
     if (payload.coupon_option.upc) {
-      await asyncSingleImageDelete(payload.coupon_option.upc);
+      await addImageDeleteJob([payload.coupon_option.upc]);
     }
 
     throw new AppError(StatusCodes.FORBIDDEN, 'Your shop was rejected');
@@ -80,15 +79,15 @@ const createDealsService = async (params: {
   // THROW ERROR IF SHOP IS NOT APPROVED YET
   if (isShopExist.shop_approval !== ShopApproval.APPROVED) {
     if (payload.images) {
-      await asyncMultipleImageDelete(payload.images);
+      await addImageDeleteJob(payload.images);
     }
 
     if (payload.coupon_option.qr) {
-      await asyncSingleImageDelete(payload.coupon_option.qr);
+      await addImageDeleteJob([payload.coupon_option.qr]);
     }
 
     if (payload.coupon_option.upc) {
-      await asyncSingleImageDelete(payload.coupon_option.upc);
+      await addImageDeleteJob([payload.coupon_option.upc]);
     }
 
     throw new AppError(StatusCodes.BAD_REQUEST, 'Wait for shop approval');
@@ -98,15 +97,15 @@ const createDealsService = async (params: {
   const isCategoryExist = await Category.findById(categoryId).lean();
   if (!isCategoryExist) {
     if (payload.images) {
-      await asyncMultipleImageDelete(payload.images);
+      await addImageDeleteJob(payload.images);
     }
 
     if (payload.coupon_option.qr) {
-      await asyncSingleImageDelete(payload.coupon_option.qr);
+      await addImageDeleteJob([payload.coupon_option.qr]);
     }
 
     if (payload.coupon_option.upc) {
-      await asyncSingleImageDelete(payload.coupon_option.upc);
+      await addImageDeleteJob([payload.coupon_option.upc]);
     }
 
     throw new AppError(
@@ -327,10 +326,7 @@ const deleteDealsService = async (user: JwtPayload, serviceId: string) => {
   // 6. Delete images asynchronously using promises
   setImmediate(async () => {
     try {
-      const imageDeletionPromises = isServiceExist.images.map((image) =>
-        deleteImageFromCLoudinary(image)
-      );
-      await Promise.all(imageDeletionPromises);
+      await addImageDeleteJob(isServiceExist.images);
     } catch (error) {
       console.error('Error deleting images from Cloudinary:', error);
     }
@@ -361,16 +357,14 @@ const updateDealsService = async (
       // Delete image from cloudinary
       if (payload.images) {
         try {
-          await Promise.all(
-            payload.images.map((i) => deleteImageFromCLoudinary(i))
-          );
+          await addImageDeleteJob(payload.images);
 
           if (payload.coupon_option.qr) {
-            await asyncSingleImageDelete(payload.coupon_option.qr);
+            await addImageDeleteJob([payload.coupon_option.qr]);
           }
 
           if (payload.coupon_option.upc) {
-            await asyncSingleImageDelete(payload.coupon_option.upc);
+            await addImageDeleteJob([payload.coupon_option.upc]);
           }
         } catch (error: any) {
           console.log('Cloudinary image deletion error: ', error.message);
@@ -389,16 +383,14 @@ const updateDealsService = async (
       // Delete image from cloudinary
       if (payload.images) {
         try {
-          await Promise.all(
-            payload.images.map((i) => deleteImageFromCLoudinary(i))
-          );
+          await addImageDeleteJob(payload.images);
 
           if (payload.coupon_option.qr) {
-            await asyncSingleImageDelete(payload.coupon_option.qr);
+            await addImageDeleteJob([payload.coupon_option.qr]);
           }
 
           if (payload.coupon_option.upc) {
-            await asyncSingleImageDelete(payload.coupon_option.upc);
+            await addImageDeleteJob([payload.coupon_option.upc]);
           }
         } catch (error: any) {
           console.log('Cloudinary image deletion error: ', error.message);
@@ -423,16 +415,14 @@ const updateDealsService = async (
       // Delete image from cloudinary
       if (payload.images) {
         try {
-          await Promise.all(
-            payload.images.map((i) => deleteImageFromCLoudinary(i))
-          );
+          await addImageDeleteJob(payload.images);
 
           if (payload.coupon_option.qr) {
-            await asyncSingleImageDelete(payload.coupon_option.qr);
+            await addImageDeleteJob([payload.coupon_option.qr]);
           }
 
           if (payload.coupon_option.upc) {
-            await asyncSingleImageDelete(payload.coupon_option.upc);
+            await addImageDeleteJob([payload.coupon_option.upc]);
           }
         } catch (error: any) {
           console.log('Cloudinary image deletion error: ', error.message);
@@ -566,11 +556,7 @@ const updateDealsService = async (
     // DEAL IMAGE DELETION
     if (payload.deletedImages && payload.deletedImages.length > 0) {
       try {
-        await Promise.all(
-          payload.deletedImages.map((url: string) =>
-            deleteImageFromCLoudinary(url)
-          )
-        );
+        await addImageDeleteJob(payload.deletedImages);
       } catch (error) {
         console.log(`Cloudinary image deleting error`, error);
       }
@@ -579,7 +565,7 @@ const updateDealsService = async (
     // QR IMAGE DELETION
     if (payload?.coupon_option?.qr) {
       try {
-        await asyncSingleImageDelete(deal.coupon_option.qr as string);
+        await addImageDeleteJob([deal.coupon_option.qr as string]);
       } catch (e) {
         console.log(`Cloudinary image deleting error`, e);
       }
@@ -588,7 +574,7 @@ const updateDealsService = async (
     // UPC IMAGE DELETION
     if (payload?.coupon_option?.upc) {
       try {
-        await asyncSingleImageDelete(deal.coupon_option.upc as string);
+        await addImageDeleteJob([deal.coupon_option.upc as string]);
       } catch (e) {
         console.log(`Cloudinary image deleting error`, e);
       }
@@ -1367,3 +1353,4 @@ export const dealsServices = {
   topViewedDealsService,
   dealAnalyticsService,
 };
+

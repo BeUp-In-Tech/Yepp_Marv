@@ -396,9 +396,6 @@ const deleteUserAccount = async (authUser: JwtPayload) => {
     throw error;
   } finally {
     session.endSession();
-
-    
-    
   }
   
   const cloudinaryImages = Array.from(cloudinaryImageSet);
@@ -406,7 +403,7 @@ const deleteUserAccount = async (authUser: JwtPayload) => {
 
   if (cloudinaryImages.length) {
     try {
-      await addImageDeleteJob(cloudinaryImages);
+      await addImageDeleteJob(cloudinaryImages, { throwOnError: true });
       imageDeleteQueueStatus = 'QUEUED';
     } catch {
       imageDeleteQueueStatus = 'QUEUE_FAILED';

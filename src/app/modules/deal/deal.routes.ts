@@ -37,7 +37,7 @@ router.get('/deals/all_deals/:lng/:lat', dealsControllers.getAllDeals);
 // GET DEAL ANALYTICS
 router.get('/deals/analytic/:dealId', checkAuth(Role.VENDOR), dealsControllers.dealAnalytics);
 
-// GET NEARESST DEALS
+// GET NEAREST DEALS
 router.get('/deals/:lng/:lat', dealsControllers.getNearestDeals);
 
 // GET MY DEAL

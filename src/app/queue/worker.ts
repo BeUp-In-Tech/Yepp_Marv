@@ -5,16 +5,17 @@ import { notificationWorker } from './worker/notification.worker';
 import { emailSendWorker } from './worker/email_send.worker';
 import { dealHandleWorker } from './worker/deal.worker';
 import { bullkMailSender } from './worker/multiple_emails.worker';
+import { imageDeleteWorker } from './worker/cloudinaryImageDeletion';
 
 
 // RUN ALL WORKER JOB HERE WITH DATABASE CONNECTION
-const connectQueeuDB = async () => {
+const connectQueueDB = async () => {
   try {
     await mongoose.connect(env.MONGO_URI as string);
     console.log('Connected to queue database');
 
 
-    // DEAL EXPIRATION AND REMINCDER HANDLING
+    // DEAL EXPIRATION AND REMINDER HANDLING
     dealHandleWorker();
 
     // NOTIFICATION SEND WORKER
@@ -23,15 +24,18 @@ const connectQueeuDB = async () => {
     // EMAIL SEND WORKER
     emailSendWorker();
 
-    // BULLK MAIL SENDER
+    // BULL MAIL SENDER
     bullkMailSender();
     
     // DEAL HANDLE WORKER
     dealHandleWorker();
+
+    // IMAGES HANDLE WORKER
+    imageDeleteWorker();
 
   } catch (error) {
     console.log('Error connecting to Redis:', error);
   }
 };
 
-connectQueeuDB();
+connectQueueDB();

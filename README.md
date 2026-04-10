@@ -1,4 +1,4 @@
-# Coupon Reedeem
+# Coupon Redeem
 
 ### Node.js + TypeScript Backend Starter
 

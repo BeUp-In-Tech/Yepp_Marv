@@ -5,7 +5,7 @@ import AppError from '../errorHelpers/AppError';
 import httpStatus, { StatusCodes } from 'http-status-codes';
 import env from '../config/env';
 import User from '../modules/user/user.model';
-import { IsActiveUser } from '../modules/user/user.interface';
+import { IsActiveUser, Role } from '../modules/user/user.interface';
 
 
 
@@ -13,13 +13,12 @@ export const checkAuth =
   (...restRole: string[]) =>
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const authHeader = req.headers.authorization as string; // GET TOKEN
-      const accessToken = authHeader.split(' ')[1];
-
+      const authHeader = req.headers.authorization as string | undefined; // GET TOKEN
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         throw new AppError(httpStatus.UNAUTHORIZED, 'Token not provided!');
       }
-      
+
+      const accessToken = authHeader.split(' ')[1];
 
       if (!accessToken) {
       throw new AppError(StatusCodes.BAD_REQUEST, "Token required");
@@ -54,11 +53,20 @@ export const checkAuth =
       }
 
 
-      if (restRole.length && !restRole.includes(verifyUser.role)) {
+      const roleFromDb = isUser.role ?? Role.USER;
+
+      // Authorization decision must come from DB role, not token claim role.
+      if (restRole.length && !restRole.includes(roleFromDb)) {
         throw new AppError( httpStatus.FORBIDDEN, 'You are not permitted to access this route')
       };
 
-      req.user = verifyUser; // Set an global type for this line see on: interface > intex.d.ts
+      // Attach trusted user payload (role/id from DB)
+      req.user = {
+        ...verifyUser,
+        userId: isUser._id.toString(),
+        role: roleFromDb,
+        email: isUser.email,
+      };
       next();
     } catch (error) {
       next(error);

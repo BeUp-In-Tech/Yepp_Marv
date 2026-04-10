@@ -4,7 +4,7 @@ import { Role } from '../user/user.interface';
 import AppError from '../../errorHelpers/AppError';
 import { StatusCodes } from 'http-status-codes';
 import { Plan } from './plan.model';
-import { asyncSingleImageDelete } from '../../utils/singleImageDeleteAsync';
+import { addImageDeleteJob } from '../../utils/imageDeleteJobAdd';
 
 // ========1.CREATE PLAN========
 const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
@@ -12,7 +12,7 @@ const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
   if (authUser.role !== Role.ADMIN) {
     // Delete image if error occurred
     if (payload.icon) {
-      await asyncSingleImageDelete(payload.icon);
+      await addImageDeleteJob([payload.icon]);
     }
 
     // Throw Error
@@ -24,7 +24,7 @@ const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
   const isPlan = await Plan.findOne({ durationDays: payload.durationDays });
   if (isPlan) {
     if (payload.icon) {
-      await asyncSingleImageDelete(payload.icon); // Delete image
+      await addImageDeleteJob([payload.icon]); // Delete image
     }
     throw new AppError(StatusCodes.BAD_REQUEST, "Already a plan exist by same duration");
   }
@@ -34,7 +34,7 @@ const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
   if (payload.price < 0 || !Number.isInteger(payload.price)) {
     // Delete image if error occurred
     if (payload.icon) {
-      await asyncSingleImageDelete(payload.icon);
+      await addImageDeleteJob([payload.icon]);
     }
 
     // Throw Error
@@ -48,7 +48,7 @@ const createPlanService = async (authUser: JwtPayload, payload: IPlan) => {
   if (payload.durationDays < 0 || !Number.isInteger(payload.durationDays)) {
     // Delete image if error Role is not ADMIN
     if (payload.icon) {
-      await asyncSingleImageDelete(payload.icon);
+      await addImageDeleteJob([payload.icon]);
     }
 
     // Throw Error
@@ -71,7 +71,7 @@ const updatePlanService = async (user: JwtPayload, planId: string, payload: Part
   // AUTHENTICATED USER IS ADMIN
   if (user.role !== Role.ADMIN) {
     if (payload.icon) {
-      await asyncSingleImageDelete(payload.icon); // Delete image
+      await addImageDeleteJob([payload.icon]); // Delete image
     }
     
 
@@ -84,7 +84,7 @@ const updatePlanService = async (user: JwtPayload, planId: string, payload: Part
  if (payload.currency) {
    if (payload.currency !== Currency.USD && payload.currency !== Currency.EUR) {
      if (payload.icon) {
-      await asyncSingleImageDelete(payload.icon); // Delete image
+      await addImageDeleteJob([payload.icon]); // Delete image
     }
     throw new AppError(StatusCodes.BAD_REQUEST, `Currency must be ${Currency.USD} or ${Currency.EUR}`)
   }
@@ -95,7 +95,7 @@ const updatePlanService = async (user: JwtPayload, planId: string, payload: Part
   const plan = await Plan.findById(planId);
   if (!plan) {
     if (payload.icon) {
-        await asyncSingleImageDelete(payload.icon);
+        await addImageDeleteJob([payload.icon]);
     }
     throw new AppError(StatusCodes.NOT_FOUND, "Plan not found");
   }
@@ -117,7 +117,7 @@ const updatePlanService = async (user: JwtPayload, planId: string, payload: Part
 
   // IF NEW ICON PROVIDED, DELETE OLD ICON
   if (payload.icon && payload.icon === updatedPlan.icon) {
-    await asyncSingleImageDelete(plan.icon); 
+    await addImageDeleteJob([plan.icon]); 
   }
 
 
@@ -152,3 +152,4 @@ export const planServices = {
   updatePlanService,
   deletePlanService
 };
+
