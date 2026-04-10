@@ -67,7 +67,6 @@ const verifyProfile = CatchAsync(async (req: Request, res: Response, next: NextF
 
 const deleteUserAccount = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const authUser = req.user as JwtPayload;
-
     const result = await userServices.deleteUserAccount(authUser);
 
     SendResponse(res, {
