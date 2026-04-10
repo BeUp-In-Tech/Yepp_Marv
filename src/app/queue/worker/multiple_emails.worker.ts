@@ -3,7 +3,7 @@ import { Worker } from 'bullmq';
 import { sendEmail } from '../../utils/sendMail';
 import { connection } from '../index.queue';
 
-export const bullkMailSender = () => {
+export const bulkMailSender = () => {
   new Worker(
     'emailSendQueue',
     async (job) => {
