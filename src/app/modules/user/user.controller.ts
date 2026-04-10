@@ -31,7 +31,7 @@ const updateUser = CatchAsync(async (req: Request, res: Response, next: NextFunc
 
 const getMe = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
-    const result = await userServices.getMeSerevice(user.userId);
+    const result = await userServices.getMeService(user.userId);
     SendResponse(res, {
         success: true,
         statusCode: StatusCodes.OK,
@@ -60,6 +60,20 @@ const verifyProfile = CatchAsync(async (req: Request, res: Response, next: NextF
         success: true,
         statusCode: StatusCodes.OK,
         message: "Profile verified",
+        data: result
+    })
+});
+
+
+const deleteUserAccount = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const authUser = req.user as JwtPayload;
+
+    const result = await userServices.deleteUserAccount(authUser);
+
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "User account deleted",
         data: result
     })
 });
@@ -110,6 +124,7 @@ export const userControllers = {
     getMe,
     sendVerificationOTP,
     verifyProfile,
+    deleteUserAccount,
     registerPushToken,
     unregisterPushToken,
     getMyDeviceList

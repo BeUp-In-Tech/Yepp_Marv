@@ -17,6 +17,8 @@ router.get('/get_me', checkAuth(...Object.keys(Role)), userControllers.getMe);
 router.post('/verification_otp', userControllers.sendVerificationOTP);
 // VERIFY PROFILE
 router.post('/verify_profile',  userControllers.verifyProfile);
+// DELETE USER ACCOUNT
+router.delete('/delete_account', checkAuth(...Object.keys(Role)), userControllers.deleteUserAccount);
 
 // PUSH FCM
 router.post('/register_fcm', validateRequest(registerSchema), checkAuth(...Object.keys(Role)), userControllers.registerPushToken);
