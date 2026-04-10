@@ -6,11 +6,19 @@ import { JwtPayload } from 'jsonwebtoken';
 import { randomOTPGenerator } from '../../utils/randomOTPGenerator';
 import { redisClient } from '../../config/redis.config';
 import { sendEmail } from '../../utils/sendMail';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { removeTokenFromOtherUsers } from '../../utils/removeToken';
 import { Shop } from '../shop/shop.model';
 import { createUserTokens } from '../../utils/user.tokens';
 import { invalidateAllMachineryCache } from '../../utils/deleteCachedData';
+import { OutletModel } from '../outlet/outlet.model';
+import { DealModel } from '../deal/deal.model';
+import { Promotion } from '../promotion/promotion.model';
+import { PaymentModel } from '../payment/payment.model';
+import { PaymentStatus } from '../payment/payment.interface';
+import { NotificationModel } from '../notification/notification.model';
+import { Views_Impressions } from '../views_impression/vi.model';
+import { addImageDeleteJob } from '../../utils/imageDeleteJobAdd';
 
 // 1. CREATE VENDOR SERVICE
 const registerUserService = async (payload: IUser) => {
@@ -18,7 +26,7 @@ const registerUserService = async (payload: IUser) => {
 
   const isVendor = await User.findOne({ email });
   if (isVendor) {
-    throw new AppError(400, 'User aleready exist. Please login!');
+    throw new AppError(400, 'User already exist. Please login!');
   }
 
   // Save User Auth
@@ -51,10 +59,7 @@ const updateUserService = async (user: JwtPayload, payload: Partial<IUser>) => {
 
   // Ensure that the user is not attempting to change their password
   if (payload.password) {
-    throw new AppError(
-      StatusCodes.BAD_REQUEST,
-      "You can't change your password from here"
-    );
+    throw new AppError(StatusCodes.BAD_REQUEST, "You can't change your password from here");
   }
 
   // Ensure that role modification is only allowed for admin users
@@ -97,7 +102,7 @@ const updateUserService = async (user: JwtPayload, payload: Partial<IUser>) => {
 
 
 // 3. GET ME
-const getMeSerevice = async (userId: string) => {
+const getMeService = async (userId: string) => {
   const getRedisData = await redisClient.get(`user_me:${userId}`);
   if (getRedisData) {   
     return JSON.parse(getRedisData);
@@ -170,7 +175,7 @@ const sendVerificationOtpService = async (email: string) => {
 };
 
 
-//5. VERIFY USER PROFILE
+// 5. VERIFY USER PROFILE
 const verifyUserProfileService = async (email: string, otp: number) => {
   const user = await User.findOne({ email });
   if (!user) {
@@ -205,7 +210,243 @@ const verifyUserProfileService = async (email: string, otp: number) => {
 };
 
 
-// 6. REGISTER USER FCM TOKEN
+// 6. DELETE USER ACCOUNT
+const deleteUserAccount = async (authUser: JwtPayload) => {
+  if (!authUser?.userId) {
+    throw new AppError(StatusCodes.BAD_REQUEST, 'Invalid user token payload');
+  }
+
+  const userId = new Types.ObjectId(authUser.userId);
+
+  const user = await User.findById(userId).select('_id email role').lean();
+  if (!user) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
+  }
+
+  // Vendor-specific data cleanup should only run for vendor accounts.
+  const isVendor = user.role === Role.VENDOR;
+
+  const shops = isVendor
+    ? await Shop.find({ vendor: userId }).select('_id business_logo').lean()
+    : [];
+  const shopIds = shops.map((shop) => shop._id);
+
+  const deals = isVendor
+    ? await DealModel.find({
+      $or: [{ user: userId }, ...(shopIds.length ? [{ shop: { $in: shopIds } }] : [])],
+    })
+      .select('_id user shop images coupon_option')
+      .lean()
+    : [];
+  const dealIds = deals.map((deal) => deal._id);
+
+  // Safety guard: every selected deal must be owned by this vendor.
+  if (isVendor && deals.length) {
+    const shopIdSet = new Set(shopIds.map((id) => id.toString()));
+    const hasUnauthorizedDeal = deals.some((deal) => {
+      const isOwnerByUser = deal.user?.toString() === userId.toString();
+      const isOwnerByShop = deal.shop && shopIdSet.has(deal.shop.toString());
+      return !isOwnerByUser && !isOwnerByShop;
+    });
+
+    if (hasUnauthorizedDeal) {
+      throw new AppError(
+        StatusCodes.FORBIDDEN,
+        'Unauthorized deal ownership detected. Account deletion stopped.'
+      );
+    }
+  }
+
+
+  // CLOUDINARY IMAGES COLLECT
+  const cloudinaryHost = 'res.cloudinary.com';
+  const isCloudinaryUrl = (url?: string) =>
+    typeof url === 'string' && url.includes(cloudinaryHost);
+
+  const cloudinaryImageSet = new Set<string>();
+
+  shops.forEach((shop) => {
+    if (isCloudinaryUrl(shop.business_logo)) {
+      cloudinaryImageSet.add(shop.business_logo);
+    }
+  });
+
+  deals.forEach((deal) => {
+    (deal.images || []).forEach((image) => {
+      if (isCloudinaryUrl(image)) {
+        cloudinaryImageSet.add(image);
+      }
+    });
+
+    if (isCloudinaryUrl(deal.coupon_option?.qr)) {
+      cloudinaryImageSet.add(deal.coupon_option?.qr as string);
+    }
+
+    if (isCloudinaryUrl(deal.coupon_option?.upc)) {
+      cloudinaryImageSet.add(deal.coupon_option?.upc as string);
+    }
+  });
+
+  // PAYMENT DELETE QUERY
+  const paymentDeleteQuery = isVendor
+    ? {
+      $or: [
+        { user: userId },
+        ...(dealIds.length ? [{ deal: { $in: dealIds } }] : []),
+      ],
+    }
+    : { user: userId };
+
+
+  // PROMOTION DELETE QUERY
+  const promotionDeleteQuery = isVendor
+    ? {
+      $or: [
+        { user: userId },
+        ...(dealIds.length ? [{ deal: { $in: dealIds } }] : []),
+        ...(shopIds.length ? [{ shop: { $in: shopIds } }] : []),
+      ],
+    }
+    : { user: userId };
+
+    // RESOLVE ALL PROMISE
+  const [paidTransactions, allTransactions] = await Promise.all([
+    PaymentModel.countDocuments({
+      ...paymentDeleteQuery,
+      payment_status: PaymentStatus.PAID,
+    }),
+    PaymentModel.countDocuments(paymentDeleteQuery),
+  ]);
+
+  const session = await mongoose.startSession();
+
+  const deleteSummary = {
+    user: 0,
+    shops: 0,
+    outlets: 0,
+    deals: 0,
+    promotions: 0,
+    notifications: 0,
+    views_impressions_by_deals: 0,
+    views_impressions_by_user: 0,
+    payments_deleted: 0,
+    payments_kept: 0,
+  };
+
+  try {
+    session.startTransaction();
+
+    // DELETE DEALS
+    const deleteDealResult = isVendor && dealIds.length
+      ? await DealModel.deleteMany({ _id: { $in: dealIds } }, { session })
+      : { deletedCount: 0 };
+    deleteSummary.deals = deleteDealResult.deletedCount ?? 0;
+
+    // DELETE VIEWS
+    const deleteDealViewsResult = isVendor && dealIds.length
+      ? await Views_Impressions.deleteMany({ deal: { $in: dealIds } }, { session })
+      : { deletedCount: 0 };
+    deleteSummary.views_impressions_by_deals =
+      deleteDealViewsResult.deletedCount ?? 0;
+
+    // DELETE USER VIEW
+    const deleteUserViewsResult = await Views_Impressions.deleteMany(
+      { user: userId },
+      { session }
+    );
+    deleteSummary.views_impressions_by_user =
+      deleteUserViewsResult.deletedCount ?? 0;
+
+    // DELETE NOTIFICATIONS OF THE USER
+    const deleteNotificationResult = await NotificationModel.deleteMany(
+      { user: userId },
+      { session }
+    );
+    deleteSummary.notifications = deleteNotificationResult.deletedCount ?? 0;
+
+    const deletePromotionResult = await Promotion.deleteMany(promotionDeleteQuery, {
+      session,
+    });
+    deleteSummary.promotions = deletePromotionResult.deletedCount ?? 0;
+
+    // Transaction history is always preserved.
+    deleteSummary.payments_deleted = 0;
+    deleteSummary.payments_kept = allTransactions;
+
+    if (isVendor && shopIds.length) {
+      const deleteOutletResult = await OutletModel.deleteMany(
+        { shop: { $in: shopIds } },
+        { session }
+      );
+      deleteSummary.outlets = deleteOutletResult.deletedCount ?? 0;
+
+      const deleteShopResult = await Shop.deleteMany(
+        { _id: { $in: shopIds } },
+        { session }
+      );
+      deleteSummary.shops = deleteShopResult.deletedCount ?? 0;
+    }
+
+    const deleteUserResult = await User.deleteOne({ _id: userId }, { session });
+    deleteSummary.user = deleteUserResult.deletedCount ?? 0;
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+
+    
+    
+  }
+  
+  const cloudinaryImages = Array.from(cloudinaryImageSet);
+  let imageDeleteQueueStatus: 'QUEUED' | 'QUEUE_FAILED' | 'NO_IMAGE' = 'NO_IMAGE';
+
+  if (cloudinaryImages.length) {
+    try {
+      await addImageDeleteJob(cloudinaryImages);
+      imageDeleteQueueStatus = 'QUEUED';
+    } catch {
+      imageDeleteQueueStatus = 'QUEUE_FAILED';
+    }
+  }
+
+  
+
+  await Promise.all([
+    redisClient.del(`user_me:${userId.toString()}`),
+    redisClient.del(`otp:${user.email}`),
+    redisClient.del(`shop:${userId.toString()}`),
+    redisClient.del(`dashboard_analytics_total`),
+    redisClient.del(`last_one_year_revenue_trend`),
+    redisClient.del(`deals_by_category_stats`),
+    invalidateAllMachineryCache(`my_deals-userId:${userId.toString()}:*`),
+    invalidateAllMachineryCache('recent_deals:*'),
+    invalidateAllMachineryCache('deals_stats:*'),
+    invalidateAllMachineryCache('all_vendors_dashboard:*'),
+    invalidateAllMachineryCache('latest_transaction:*'),
+    invalidateAllMachineryCache('machinery:*'),
+    invalidateAllMachineryCache('machinery:all:*'),
+  ]);
+
+  return {
+    userId: userId.toString(),
+    imageDeleteQueueStatus,
+    transactionSummary: {
+      paidTransactions,
+      totalTransactions: allTransactions,
+      deletedTransactions: deleteSummary.payments_deleted,
+      keptTransactions: deleteSummary.payments_kept,
+    },
+    cloudinaryImages,
+    deleteSummary,
+  };
+};
+
+
+// 7. REGISTER USER FCM TOKEN
 const registerPushTokenService = async (
   _userId: string,
   payload: IFcmToken
@@ -252,7 +493,7 @@ const registerPushTokenService = async (
 };
 
 
-// 7. UNREGISTER PUSH
+// 8. UNREGISTER PUSH
 const unregisterPushTokenService = async (
   deviceId: string,
   _userId: string
@@ -273,7 +514,7 @@ const unregisterPushTokenService = async (
 };
 
 
-// 8. LIST OF LOGGED IN DEVICES
+// 9. LIST OF LOGGED IN DEVICES
 const listMyDevicesService = async (_userId: string) => {
   const userId = new Types.ObjectId(_userId);
 
@@ -289,9 +530,10 @@ const listMyDevicesService = async (_userId: string) => {
 export const userServices = {
   registerUserService,
   updateUserService,
-  getMeSerevice,
+  getMeService,
   sendVerificationOtpService,
   verifyUserProfileService,
+  deleteUserAccount,
   registerPushTokenService,
   unregisterPushTokenService,
   listMyDevicesService,
