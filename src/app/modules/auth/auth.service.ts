@@ -15,7 +15,7 @@ import axios from 'axios';
 import qs from 'qs';
 import { AppleTokenExchangeResponse, generateAppleClientSecret, verifyAppleIdToken } from './auth.utility';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { GoogleIdTokenPayload, GoogleUserInfoPayload } from './auth.interfact';
+import { GoogleIdTokenPayload, GoogleUserInfoPayload } from './auth.interface';
 
 
 // CHANGE PASSWORD

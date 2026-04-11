@@ -225,22 +225,9 @@ const appleCallback = CatchAsync(
       role: user.role,
     } as JwtPayload);
 
-
-
-    const userAgent = req.headers['user-agent'] || '';
-
-    const isAndroid = /android/i.test(userAgent);
-    const isIOS = /iphone|ipad|ipod/i.test(userAgent);
-
-    if (isAndroid || isIOS) {
-      res.redirect(
-        `${env.DEEP_LINK}/auth/apple?access=${userTokens.accessToken}&refresh=${userTokens.refreshToken}`
-      );
-    } else {
-      res.redirect(
+    res.redirect(
         `${env.FRONTEND_URL}/shop-overview?access=${userTokens.accessToken}&refresh=${userTokens.refreshToken}`
       );
-    }
   }
 );
 
