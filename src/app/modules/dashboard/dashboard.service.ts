@@ -26,11 +26,6 @@ const dealsByCategoryStats = async () => {
 
   const dealsByCategory = await DealModel.aggregate([
     {
-      $match: {
-        promotedUntil: { $gte: new Date() },
-      },
-    },
-    {
       $group: {
         _id: '$category',
         count: { $sum: 1 },

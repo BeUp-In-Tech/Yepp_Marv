@@ -42,6 +42,9 @@ interface EnvInterfaces {
   GOOGLE_OAUTH_SECRET: string;
   GOOGLE_CALLBACK_URL: string;
 
+  GOOGLE_ANDROID_CLIENT_ID: string;
+  GOOGLE_IOS_CLIENT_ID: string;
+
   APPLE_TEAM_ID: string;
   APPLE_KEY_ID: string;
   APPLE_PRIVATE_KEY: string;
@@ -108,6 +111,8 @@ const loadEnvVaribles = (): EnvInterfaces => {
     'GOOGLE_OAUTH_SECRET',
     'GOOGLE_OAUTH_ID',
     'GOOGLE_CALLBACK_URL',
+    'GOOGLE_IOS_CLIENT_ID',
+    'GOOGLE_ANDROID_CLIENT_ID',
 
     'APPLE_TEAM_ID',
     'APPLE_KEY_ID',
@@ -184,6 +189,8 @@ const loadEnvVaribles = (): EnvInterfaces => {
     GOOGLE_OAUTH_ID: process.env.GOOGLE_OAUTH_ID as string,
     GOOGLE_OAUTH_SECRET: process.env.GOOGLE_OAUTH_SECRET as string,
     GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL as string,
+    GOOGLE_ANDROID_CLIENT_ID: process.env.GOOGLE_ANDROID_CLIENT_ID as string,
+    GOOGLE_IOS_CLIENT_ID: process.env.GOOGLE_IOS_CLIENT_ID as string,
 
     APPLE_TEAM_ID: process.env.APPLE_TEAM_ID as string,
     APPLE_KEY_ID: process.env.APPLE_KEY_ID as string,

@@ -58,6 +58,22 @@ const googleCallback = CatchAsync(
   }
 );
 
+// REGISTER WITH GOOGLE FOR APPLE DEVICE
+const googleAuthSystem = CatchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const result = await authService.googleAuthSystem(req.body);
+
+    SendResponse(res, {
+      success: true,
+      statusCode: 200,
+      message: 'Authentication success',
+      data: result,
+    })
+  }
+);
+
+
+
 // APPLE CALLBACK
 const appleCallback = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -244,7 +260,6 @@ const appleLogin = CatchAsync(
   }
 );
 
-
 const credentialsLogin = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate('local', async (err: any, user: any, info: any) => {
@@ -357,5 +372,6 @@ export const authController = {
   resetPassword,
   getNewAccessToken,
   appleCallback,
-  appleLogin
+  appleLogin,
+  googleAuthSystem
 };
