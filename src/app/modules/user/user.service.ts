@@ -144,6 +144,12 @@ const sendVerificationOtpService = async (email: string) => {
     'user_name email isVerified'
   )) as Partial<IUser>;
 
+
+  if (!user) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
+  }
+  
+
   if (user.isVerified) {
     throw new AppError(StatusCodes.BAD_REQUEST, "Profile already verified!")
   }
