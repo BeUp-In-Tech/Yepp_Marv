@@ -124,11 +124,11 @@ const appleInAppPurchase = async (receipt: any) => {
   const { valid, data } = await validateIOS(receipt.serverVerificationData);
 
   // CHECK PAYMENT ALREADY USED BY SAME TRANSACTION ID
-  const existingPayemnt = await PaymentModel.findOne({
+  const existingPayment = await PaymentModel.findOne({
     transaction_id: data?.transactionId as string,
   });
 
-  if (existingPayemnt) {
+  if (existingPayment) {
     console.log('Transaction already used!');
     return;
   }
