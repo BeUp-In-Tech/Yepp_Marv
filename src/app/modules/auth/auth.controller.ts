@@ -52,7 +52,7 @@ const googleCallback = CatchAsync(
       );
     } else {
       res.redirect(
-        `${env.FRONTEND_URL}/shop-overview?access=${token.accessToken}&refresh=${token.refreshToken}`
+        `${env.FRONTEND_URL}/login?access=${token.accessToken}&refresh=${token.refreshToken}`
       );
     }
   }
@@ -226,7 +226,7 @@ const appleCallback = CatchAsync(
     } as JwtPayload);
 
     res.redirect(
-        `${env.FRONTEND_URL}/shop-overview?access=${userTokens.accessToken}&refresh=${userTokens.refreshToken}`
+        `${env.FRONTEND_URL}/login?access=${userTokens.accessToken}&refresh=${userTokens.refreshToken}`
       );
   }
 );
