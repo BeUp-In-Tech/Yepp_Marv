@@ -3,8 +3,6 @@ import mongoose from 'mongoose';
 import User from '../../modules/user/user.model';
 import { IUser } from '../../modules/user/user.interface';
 import { NotificationModel } from '../../modules/notification/notification.model';
-import AppError from '../../errorHelpers/AppError';
-import { StatusCodes } from 'http-status-codes';
 import admin from '../../config/firebase.config';
 import { INotification } from '../../modules/notification/notification.interface';
 
@@ -87,7 +85,13 @@ export async function notifyUser(input: INotification) {
   const tokens = getActiveTokens(user);
 
   if (!tokens.length) {
-       throw new AppError(StatusCodes.NOT_FOUND, "NO_ACTIVE_TOKENS");
+    return {
+      success: true,
+      notificationId,
+      pushed: false,
+      tokensUsed: 0,
+      reason: 'NO_ACTIVE_TOKENS',
+    };
   }
 
   // 3.2) Build FCM message (multicast)

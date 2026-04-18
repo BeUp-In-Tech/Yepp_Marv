@@ -10,8 +10,12 @@ export const notificationWorker = () => {
     'notificationQueue',
     async (job) => {
       try {
-        notifyUser(job.data);
-        console.log('Queued notification sent');
+        const result = await notifyUser(job.data);
+        console.log(
+          result.pushed
+            ? 'Queued notification sent'
+            : `Queued notification saved without push: ${result.reason || result.pushError || 'NO_PUSH'}`
+        );
       } catch (error) {
         console.log('Notification sending error from bullmq: ', error);
       }

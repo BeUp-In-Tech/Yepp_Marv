@@ -298,7 +298,7 @@ const updateShopService = async (
   ) {
     // =============SEND NOTIFICATION=============
     const notificationPayload = {
-      user: new Types.ObjectId(user._id),
+      user: updatedShop.vendor,
       title: 'Congratulations! Your shop approved by Yepp',
       body: 'Your shop is live now. You can promote your service and deals',
       type: NotificationType.SHOP,
@@ -358,8 +358,8 @@ const updateShopService = async (
   ) {
     // =============SEND NOTIFICATION AND EMAIL============
     const notificationPayload = {
-      user: new Types.ObjectId(user._id),
-      title: 'Your shop created request rejected by Yepp',
+      user: updatedShop.vendor,
+      title: 'Your shop rejected by Yepp',
       body: 'Please kindly submit valid data and information about your business',
       type: NotificationType.SHOP,
       entityId: shopId,
