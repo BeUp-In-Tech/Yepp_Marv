@@ -116,6 +116,8 @@ const createShopService = async (
     await session.commitTransaction();
     session.endSession();
 
+  await redisClient.del(`user_me:${vendorId}`);
+    
     return {
       shop: shopDoc,
       outlets_created: outlets.length,
