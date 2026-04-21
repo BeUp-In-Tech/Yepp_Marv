@@ -15,13 +15,8 @@ const businessPhoneSchema = z.object({
 export const shopValidationSchema = z.object({
   shop: z.object({
     business_name: z.string().min(2, 'Business name is required').max(120),
-
-    business_email: z.string().email('Invalid business email').toLowerCase(),
-
     business_phone: businessPhoneSchema,
-
     description: z.string().min(10, 'Description too short').max(1000),
-
     website: z.string().url('Invalid website URL').optional(),
   }),
 
@@ -29,7 +24,7 @@ export const shopValidationSchema = z.object({
     z.object({
       outlet_name: z
         .string({
-          message: 'Outlet name must be string',
+          message: 'Location name must be string',
         })
         .optional(),
 

@@ -873,7 +873,7 @@ const getNearestDealsService = async (
         distanceField: 'distance',
         spherical: true,
         query: { isActive: true },
-        // maxDistance: 10000, // optional 10km radius
+        maxDistance:  48000, //  30 miles (approximate) radius
       },
     },
 

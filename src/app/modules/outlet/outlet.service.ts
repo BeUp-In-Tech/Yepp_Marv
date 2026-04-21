@@ -14,7 +14,7 @@ const updateOutletService = async (outletId: string, userId: string, payload: Pa
     const shop = await Shop.findOne({vendor: userId}).lean();
     
     if (!shop) {
-        throw new AppError(StatusCodes.NOT_FOUND , "Outlet or shop not found");
+        throw new AppError(StatusCodes.NOT_FOUND , "Location or shop not found");
     }
 
 
@@ -34,7 +34,7 @@ const updateOutletService = async (outletId: string, userId: string, payload: Pa
     const updateOutlet = await OutletModel.findOneAndUpdate({_id: outletId, shop: shop._id}, payload, {runValidators: true, new: true });
 
     if (!updateOutlet) {
-        throw new AppError(StatusCodes.BAD_REQUEST, "Outlet not found");
+        throw new AppError(StatusCodes.BAD_REQUEST, "Location not found");
     }
 
 
