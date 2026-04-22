@@ -59,6 +59,27 @@ const createDealsService = async (params: {
     );
   }
 
+  console.log(
+    'result: ',
+    !payload.coupon && !payload.coupon_option.qr && payload.coupon_option.upc
+  );
+  console.log('I am passed');
+
+  if (
+    !payload.coupon &&
+    !payload.coupon_option?.qr &&
+    !payload.coupon_option?.upc
+  ) {
+    if (payload.images) {
+      await addImageDeleteJob(payload.images);
+    }
+
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      'At least one of these required: Coupon code, Qr and Bar code'
+    );
+  }
+
   // THROW ERROR IF SHOP ALREADY REJECTED
   if (isShopExist.shop_approval === ShopApproval.REJECTED) {
     if (payload.images) {
@@ -873,7 +894,7 @@ const getNearestDealsService = async (
         distanceField: 'distance',
         spherical: true,
         query: { isActive: true },
-        maxDistance:  48000, //  30 miles (approximate) radius
+        maxDistance: 48000, //  30 miles (approximate) radius
       },
     },
 
@@ -1335,8 +1356,11 @@ const dealAnalyticsService = async (authUserId: string, dealId: string) => {
     },
   ]);
 
-
-  return {  ...isDealExist.toObject(), totalViews: stats[0]?.total, totalImpression: stats[1]?.total };
+  return {
+    ...isDealExist.toObject(),
+    totalViews: stats[0]?.total,
+    totalImpression: stats[1]?.total,
+  };
 };
 
 // EXPORT ALL FUNCTION
@@ -1353,4 +1377,3 @@ export const dealsServices = {
   topViewedDealsService,
   dealAnalyticsService,
 };
-

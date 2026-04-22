@@ -16,7 +16,7 @@ export const CreateDealZodSchema = z
     tags: z.array(z.string().min(1).max(50)).max(20).default([]),
     description: z.string("Description must be string").min(10).max(5000).trim(),
     images: z.array(z.string().url()),
-    coupon: z.string("Coupon must be string"),
+    coupon: z.string("Coupon must be string").optional(),
     available_in_outlet: z.array(z.string()),
 
     coupon_option: z.object({

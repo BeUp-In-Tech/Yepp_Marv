@@ -14,7 +14,7 @@ export const createAdmin = async () => {
         }
         
         const adminPayload: IUser = {
-            user_name: "Nayem Ahmed",
+            user_name: "Yepp Admin",
             email: env.ADMIN_MAIL,
             role: Role.ADMIN,
             isVerified: true,
