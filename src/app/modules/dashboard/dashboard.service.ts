@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import AppError from '../../errorHelpers/AppError';
 import env from '../../config/env';
 import admin from '../../config/firebase.config';
 import { redisClient } from '../../config/redis.config';
@@ -85,14 +86,24 @@ const allVendorsStats = async (query: Record<string, string>) => {
   const limit = query.limit ? Number(query.limit) : 10;
   const skip = (page - 1) * limit;
 
+  const approvalFilter = approval ? approval.toUpperCase().trim() : '';
+
+  if (
+    approvalFilter &&
+    !Object.values(ShopApproval).includes(approvalFilter as ShopApproval)
+  ) {
+    throw new AppError(400, 'Invalid shop approval filter');
+  }
+
   // Dynamic sort
   const sortObj: Record<string, 1 | -1> = {};
   const field = sort.startsWith('-') ? sort.substring(1) : sort;
   const order = sort.startsWith('-') ? -1 : 1;
   sortObj[field] = order;
+  
 
   // MAKE REDIS KEY
-  const cacheKey = `all_vendors_dashboard:${approval}_${searchTerm}_${page}_${limit}_${sort}`;
+  const cacheKey = `all_vendors_dashboard:${approvalFilter}_${searchTerm}_${page}_${limit}_${sort}`;
   const getCachedData = await redisClient.get(cacheKey);
 
   // RETURN CACHED DATA
@@ -184,6 +195,14 @@ const allVendorsStats = async (query: Record<string, string>) => {
       },
     }
   );
+
+  if (approvalFilter) {
+    pipeline.push({
+      $match: {
+        shop_approval: approvalFilter,
+      },
+    });
+  }
 
   // SEARCH (optional)
   if (searchTerm) {
@@ -465,8 +484,6 @@ const dealsStats = async (query: Record<string, string>) => {
   // Return the data with pagination and summary
   return final_data;
 };
-
- 
 
 // 5. DASHBOARD ANALYTICS TOTAL
 const dashboardAnalyticsTotal = async () => {
