@@ -367,6 +367,10 @@ const updateShopService = async (
       jobId: `shop-approval-${shopId}`,
       removeOnComplete: true,
     });
+
+
+    // AFTER APPROVE SHOP CACHE INVALIDATE
+    await redisClient.del(`shop:${shopOwner._id}`);
   }
 
   // IF SHOP APPROVAL 'REJECTED'
@@ -430,6 +434,10 @@ const updateShopService = async (
       jobId: `shop-approval-${shopId}`,
       removeOnComplete: true,
     });
+
+
+    // AFTER APPROVE SHOP CACHE INVALIDATE
+    await redisClient.del(`shop:${shopOwner._id}`);
   }
 
   // REMOVE ALL CACHE KEY WHEN UPDATE
