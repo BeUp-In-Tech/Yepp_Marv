@@ -20,10 +20,10 @@ export const emailSendWorker = async () => {
 
   // LISTEN COMPLETED AND FAILED EVENT
   worker.on('completed', (job) => {
-    console.log('Job completed:', job.id);
+    console.log('Email Job completed:', job.id);
   });
 
   worker.on('failed', (job, err) => {
-    console.error('Job failed:', err);
+    console.error('Email Job failed:', err);
   });
 };
