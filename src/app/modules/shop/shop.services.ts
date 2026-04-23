@@ -69,6 +69,10 @@ const createShopService = async (
     throw new Error('Shop already exists for this vendor');
   }
 
+  const adminUser = await User.findOne({ email: env.ADMIN_MAIL })
+    .select('_id')
+    .lean();
+
   const session = await mongoose.startSession();
 
   try {
@@ -117,6 +121,44 @@ const createShopService = async (
     session.endSession();
 
   await redisClient.del(`user_me:${vendorId}`);
+
+    // NOTIFY ADMIN ABOUT NEW SHOP APPROVAL REQUEST
+    if (adminUser?._id) {
+      setImmediate(async () => {
+        try {
+          await notificationQueue.add(
+            'sendNotification',
+            {
+              user: adminUser._id,
+              title: 'New shop approval request',
+              body: `${payload.shop.business_name.trim()} submitted a new shop for approval.`,
+              type: NotificationType.SHOP,
+              entityId: shopDoc._id.toString(),
+              webUrl: `${env.FRONTEND_URL}/dashboard/admin-vendor`,
+              deepLink: `${env.DEEP_LINK}/dashboard/admin-vendor`,
+              data: {
+                shopId: shopDoc._id.toString(),
+                shopName: payload.shop.business_name.trim(),
+                vendorId: vendorId.toString(),
+              },
+            },
+            {
+              attempts: 3,
+              backoff: {
+                type: 'exponential',
+                delay: 3000,
+              },
+              jobId: `shop-approval-request-${shopDoc._id.toString()}`,
+              removeOnComplete: true,
+              removeOnFail: 1000,
+            }
+          );
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.log('Admin notification queue error:', error);
+        }
+      });
+    }
     
     return {
       shop: shopDoc,
