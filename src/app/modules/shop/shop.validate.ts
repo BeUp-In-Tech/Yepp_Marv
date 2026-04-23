@@ -14,9 +14,9 @@ const businessPhoneSchema = z.object({
 
 export const shopValidationSchema = z.object({
   shop: z.object({
-    business_name: z.string().min(2, 'Business name is required').max(120),
+    business_name: z.string().min(5, 'Business name length must be minimum 5 characters').max(120, "'Business name length must be maximum 120 characters'"),
     business_phone: businessPhoneSchema,
-    description: z.string().min(10, 'Description too short').max(1000),
+    description: z.string().min(10, 'Description too short').max(1000, "Maximum 100 characters"),
     website: z.string().url('Invalid website URL').optional(),
   }),
 
@@ -55,5 +55,5 @@ export const updateShopValidationSchema = z.object({
   shop_approval: z.nativeEnum(ShopApproval).optional(),
 
   zip_code: z.string().min(3).max(15).optional(),
-  website: z.string().url('Invalid website URL').optional(),
+  website: z.union([z.string().trim().url('Invalid website URL'), z.literal('')]).optional(),
 });

@@ -233,12 +233,21 @@ const updateShopService = async (
 
   // 4. build controlled update object
   const updateData: Record<string, any> = {};
+  const unsetData: Record<string, any> = {};
 
   if (payload.business_name) updateData.business_name = payload.business_name;
 
   if (payload.description) updateData.description = payload.description;
 
-  if (payload.website !== undefined) updateData.website = payload.website;
+  if (payload.website !== undefined) {
+    const website = payload.website.trim();
+
+    if (website === '') {
+      unsetData.website = 1;
+    } else {
+      updateData.website = website;
+    }
+  }
 
   if (payload.shop_approval) {
     if (user.role !== Role.ADMIN) {
@@ -260,7 +269,10 @@ const updateShopService = async (
 
   
   // 6. prevent empty update
-  if (Object.keys(updateData).length === 0) {
+  if (
+    Object.keys(updateData).length === 0 &&
+    Object.keys(unsetData).length === 0
+  ) {
     throw new AppError(
       StatusCodes.BAD_REQUEST,
       'No valid fields provided for update'
@@ -268,10 +280,14 @@ const updateShopService = async (
   }
 
   // 7.. atomic ownership update
+  const updateQuery: Record<string, any> = {};
+  if (Object.keys(updateData).length > 0) updateQuery.$set = updateData;
+  if (Object.keys(unsetData).length > 0) updateQuery.$unset = unsetData;
+
   const validator = { new: true, runValidators: true };
   const updatedShop = await Shop.findOneAndUpdate(
     filter,
-    updateData,
+    updateQuery,
     validator
   );
 
@@ -351,6 +367,10 @@ const updateShopService = async (
       jobId: `shop-approval-${shopId}`,
       removeOnComplete: true,
     });
+
+
+    // AFTER APPROVE SHOP CACHE INVALIDATE
+    await redisClient.del(`shop:${shopOwner._id}`);
   }
 
   // IF SHOP APPROVAL 'REJECTED'
@@ -414,6 +434,10 @@ const updateShopService = async (
       jobId: `shop-approval-${shopId}`,
       removeOnComplete: true,
     });
+
+
+    // AFTER APPROVE SHOP CACHE INVALIDATE
+    await redisClient.del(`shop:${shopOwner._id}`);
   }
 
   // REMOVE ALL CACHE KEY WHEN UPDATE
