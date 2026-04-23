@@ -1,6 +1,7 @@
 import { StatusCodes } from 'http-status-codes';
 import { Types } from 'mongoose';
 import AppError from '../../errorHelpers/AppError';
+import User from '../user/user.model';
 import { NotificationType } from './notification.interface';
 import { NotificationModel } from './notification.model';
 import { NotificationPanelStateModel } from './notification-panel-state.model';
@@ -108,8 +109,46 @@ const markNotificationPanelOpened = async (
   }
 };
 
-const getCreatedAfterLastPanelOpenQuery = (lastOpenedAt?: Date) =>
-  lastOpenedAt ? { createdAt: { $gt: lastOpenedAt } } : {};
+const getAuthenticatedUserCreatedAt = async (authUserId?: string) => {
+  if (!authUserId) {
+    return null;
+  }
+
+  const userObjectId = validateObjectId(authUserId, 'userId');
+  const user = await User.findById(userObjectId)
+    .select('createdAt')
+    .lean<{ createdAt?: Date } | null>();
+
+  if (!user) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
+  }
+
+  return user.createdAt ?? null;
+};
+
+const getSystemNotificationCreatedAtQuery = (
+  lastOpenedAt?: Date,
+  userCreatedAt?: Date | null
+) => {
+  if (lastOpenedAt && userCreatedAt) {
+    const effectiveSince =
+      lastOpenedAt.getTime() > userCreatedAt.getTime()
+        ? lastOpenedAt
+        : userCreatedAt;
+
+    return { createdAt: { $gt: effectiveSince } };
+  }
+
+  if (lastOpenedAt) {
+    return { createdAt: { $gt: lastOpenedAt } };
+  }
+
+  if (userCreatedAt) {
+    return { createdAt: { $gte: userCreatedAt } };
+  }
+
+  return {};
+};
 
 const getNotificationContext = (
   authUserId?: string,
@@ -131,14 +170,26 @@ const getNotificationContext = (
   };
 };
 
-const getNotificationQuery = (userObjectId: Types.ObjectId | null) =>
+const getNotificationQuery = (
+  userObjectId: Types.ObjectId | null,
+  userCreatedAt?: Date | null
+) =>
   userObjectId
-    ? { $or: [{ user: userObjectId }, { type: NotificationType.SYSTEM }] }
+    ? {
+        $or: [
+          { user: userObjectId },
+          {
+            type: NotificationType.SYSTEM,
+            ...getSystemNotificationCreatedAtQuery(undefined, userCreatedAt),
+          },
+        ],
+      }
     : { type: NotificationType.SYSTEM };
 
 const getPanelUnreadCount = async (
   readFilter: NotificationTrackingFilter,
-  userObjectId: Types.ObjectId | null
+  userObjectId: Types.ObjectId | null,
+  userCreatedAt?: Date | null
 ) => {
   const [readSystemNotificationIds, panelState] = await Promise.all([
     NotificationReadModel.distinct('notification', readFilter),
@@ -147,8 +198,9 @@ const getPanelUnreadCount = async (
       .lean(),
   ]);
 
-  const createdAfterLastOpenQuery = getCreatedAfterLastPanelOpenQuery(
-    panelState?.lastOpenedAt
+  const createdAfterLastOpenQuery = getSystemNotificationCreatedAtQuery(
+    panelState?.lastOpenedAt,
+    userCreatedAt
   );
   const systemUnreadQuery = {
     type: NotificationType.SYSTEM,
@@ -182,12 +234,13 @@ export const readAllNotificationService = async (
   authUserId?: string,
   notificationClientId?: string
 ) => {
+  const userCreatedAt = await getAuthenticatedUserCreatedAt(authUserId);
   const { userObjectId, readFilter } = getNotificationContext(
     authUserId,
     notificationClientId
   );
   const { page, limit, skip } = getPagination(query);
-  const _query = getNotificationQuery(userObjectId);
+  const _query = getNotificationQuery(userObjectId, userCreatedAt);
 
   if (!readFilter) {
     const notifications = await NotificationModel.find(_query)
@@ -211,7 +264,7 @@ export const readAllNotificationService = async (
       .skip(skip)
       .limit(limit)
       .lean(),
-    getPanelUnreadCount(readFilter, userObjectId),
+    getPanelUnreadCount(readFilter, userObjectId, userCreatedAt),
   ]);
 
   const readSystemNotificationIdSet = new Set(
@@ -245,6 +298,7 @@ export const openNotificationPanelService = async (
   authUserId?: string,
   notificationClientId?: string
 ) => {
+  const userCreatedAt = await getAuthenticatedUserCreatedAt(authUserId);
   const { userObjectId, readFilter } = getNotificationContext(
     authUserId,
     notificationClientId
@@ -258,7 +312,11 @@ export const openNotificationPanelService = async (
     };
   }
 
-  const { unreadCount } = await getPanelUnreadCount(readFilter, userObjectId);
+  const { unreadCount } = await getPanelUnreadCount(
+    readFilter,
+    userObjectId,
+    userCreatedAt
+  );
 
   await markNotificationPanelOpened(readFilter);
 
@@ -275,6 +333,7 @@ export const getSingleNotificationService = async (
   authUserId?: string,
   notificationClientId?: string
 ) => {
+  const userCreatedAt = await getAuthenticatedUserCreatedAt(authUserId);
   const notificationObjectId = validateObjectId(
     notificationId,
     'notificationId'
@@ -292,7 +351,15 @@ export const getSingleNotificationService = async (
   const notification = await NotificationModel.findOne({
     _id: notificationObjectId,
     ...(userObjectId
-      ? { $or: [{ user: userObjectId }, { type: NotificationType.SYSTEM }] }
+      ? {
+          $or: [
+            { user: userObjectId },
+            {
+              type: NotificationType.SYSTEM,
+              ...getSystemNotificationCreatedAtQuery(undefined, userCreatedAt),
+            },
+          ],
+        }
       : { type: NotificationType.SYSTEM }),
   }).lean();
 
