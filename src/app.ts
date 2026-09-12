@@ -11,12 +11,12 @@ import session from 'express-session';
 import passport from 'passport';
 import './app/config/passport.config';
 import { paymentControllers } from './app/modules/payment/payment.controllers';
+import { swaggerUiServer, swaggerUiSetup } from './app/config/swagger.config';
 import { RedisStore } from 'connect-redis';
 import { redisClient } from './app/config/redis.config';
 import helmet from 'helmet';
 import { httpLogger } from './app/middlewares/httpLogger.middleware';
 import { requestId } from './app/middlewares/requestId.middleware';
-import { swaggerUiServer, swaggerUiSetup } from './app/config/swagger.config';
 
 const app = express();
 
@@ -112,11 +112,9 @@ app.get('/', (req: Request, res: Response) => {
   res.send('Welcome to the show');
 });
 
-app.use(
-    "/api-docs",
-    swaggerUiServer,
-    swaggerUiSetup
-  );
+if (env.NODE_ENV !== 'production') {
+  app.use("/api-docs", swaggerUiServer, swaggerUiSetup);
+}
 
 app.use('/api/v1', router);
 
