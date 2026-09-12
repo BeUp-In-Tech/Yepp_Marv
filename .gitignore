@@ -1,8 +1,6 @@
 node_modules
 dist
-.env
 .env.prod
-.vscode
 .idea
 firebase.json
 Marv_Client_Requested_Changes.docx
@@ -16,3 +14,4 @@ test
 update.requirements.md
 FirdayTask.txt
 admin-city-seed-test.html
+config.bat
