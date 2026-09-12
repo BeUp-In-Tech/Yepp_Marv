@@ -1,0 +1,27 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "dev",
+    "main",
+    "origin",
+    "yepp/v1",
+    "yepp/v2",
+    "yepp/v3"
+  ],
+  "parent": {
+    "dev": "main",
+    "main": null,
+    "origin": "main",
+    "yepp/v1": "main",
+    "yepp/v2": "main",
+    "yepp/v3": "main"
+  },
+  "order": [
+    "main",
+    "dev",
+    "origin",
+    "yepp/v1",
+    "yepp/v2",
+    "yepp/v3"
+  ]
+}
