@@ -5,12 +5,12 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "dev": "npx tsx watch ./src/server.ts",
-    "start": "pm2 start ecosystem.config.js -i max",
+    "dev": "node api.js && npx tsx watch ./src/server.ts",
+    "start": "node api.js && pm2 start ecosystem.config.js -i max",
     "restart": "pm2 restart ecosystem.config.js",
     "stop": "pm2 delete all",
     "lint": "npx eslint ./src",
-    "build": "NODE_OPTIONS=--max-old-space-size=4096 tsc && cp -r src/app/utils/templates dist/app/utils/",
+    "build": "node api.js && NODE_OPTIONS=--max-old-space-size=4096 tsc && cp -r src/app/utils/templates dist/app/utils/",
     "format": "npx prettier --write .",
     "worker:dev": "nodemon --watch src --exec ts-node ./src/app/queue/worker.ts",
     "worker": "node ./src/app/queue/worker.ts"
@@ -45,9 +45,9 @@
     "typescript-eslint": "^8.36.0"
   },
   "dependencies": {
-    "@apidevtools/swagger-parser": "^12.1.0",
     "@types/passport-google-oauth20": "^2.0.17",
     "axios": "^1.14.0",
+    "@apidevtools/swagger-parser": "^12.1.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.79.1",
     "cloudinary": "^1.41.3",
