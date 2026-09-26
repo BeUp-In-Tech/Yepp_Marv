@@ -68,6 +68,7 @@ export const CreateDealZodSchema = z
 // UPDATE ZOD SCHEMA
 export const UpdateDealZodSchema = z
   .object({
+    category: objectId.optional(),
     title: z
       .string('Title must be string')
       .min(2, 'Title must be minimum 2 characters')

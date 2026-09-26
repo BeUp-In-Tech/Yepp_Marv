@@ -176,6 +176,7 @@ export const CreateDealV2ZodSchema = z
 
 export const UpdateDealV2ZodSchema = z
   .object({
+    category: objectId.optional(),
     title: z.string().trim().min(2).max(120).optional(),
     regular_price: z.number().nonnegative().optional(),
     discount: z.number().nonnegative().optional(),

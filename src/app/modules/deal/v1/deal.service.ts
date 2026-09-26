@@ -755,6 +755,18 @@ const updateDealsService = async (
   // BUILD THE UPDATE PAYLOAD
   const updateData: any = {};
 
+  if (payload.category) {
+    const isCategoryExist = await Category.findById(payload.category).lean();
+    if (!isCategoryExist) {
+      throw new AppError(
+        StatusCodes.NOT_FOUND,
+        'Invalid category, category not found',
+        LoggerModule.DEAL
+      );
+    }
+    updateData.category = new Types.ObjectId(payload.category);
+  }
+
   if (payload.title) updateData.title = payload.title.trim();
   if (payload.description) updateData.description = payload.description.trim();
   if (payload.regular_price !== undefined)
